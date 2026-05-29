@@ -1,0 +1,58 @@
+.camera-view {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.align-square {
+  position: relative;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.grid-lines {
+  position: absolute;
+  inset: 0;
+}
+.vline,
+.hline {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.28);
+}
+.vline {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.hline {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.auto-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 14px;
+  background: conic-gradient(var(--good) calc(var(--p) * 360deg), transparent 0);
+  -webkit-mask:
+    radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  opacity: 0.9;
+}
