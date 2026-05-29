@@ -154,22 +154,13 @@ export function CameraView({
           ) : (
             <>
               <div className="grid-lines">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <span key={`v${i}`} className="vline" style={{ left: `${(i / 3) * 100}%` }} />
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <span key={`v${i}`} className="vline" style={{ left: `${((i + 1) / 3) * 100}%` }} />
                 ))}
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <span key={`h${i}`} className="hline" style={{ top: `${(i / 3) * 100}%` }} />
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <span key={`h${i}`} className="hline" style={{ top: `${((i + 1) / 3) * 100}%` }} />
                 ))}
               </div>
-              {autoProgress > 0 && (
-                <>
-                  <div className="auto-ring" style={{ '--p': autoProgress } as React.CSSProperties} />
-                  <div className="auto-sweep" />
-                  <div className="hold-track">
-                    <span style={{ transform: `scaleX(${autoProgress})` }} />
-                  </div>
-                </>
-              )}
             </>
           )}
         </div>
