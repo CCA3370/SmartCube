@@ -69,7 +69,7 @@ export function CameraView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [overlayRect, setOverlayRect] = useState<OverlayRect | null>(null);
   const pct = overlayFraction * 100;
-  const ringColor = readiness.ready ? 'var(--good)' : 'rgba(255,255,255,0.6)';
+  const ringColor = readiness.ready ? 'var(--accent)' : 'rgba(255,255,255,0.6)';
   const reviewing = Boolean(capturedFace);
 
   const updateOverlayRect = useCallback(() => {
@@ -126,7 +126,7 @@ export function CameraView({
     borderColor: reviewing ? 'var(--warn)' : ringColor,
     boxShadow: reviewing
       ? '0 0 0 3px rgba(255,176,32,0.25), 0 16px 38px rgba(0,0,0,0.34)'
-      : readiness.ready ? '0 0 0 3px rgba(52,199,89,0.35)' : 'none',
+      : readiness.ready ? '0 0 0 3px rgba(76,154,255,0.35)' : 'none',
   };
 
   return (
@@ -161,6 +161,11 @@ export function CameraView({
                   <span key={`h${i}`} className="hline" style={{ top: `${((i + 1) / 3) * 100}%` }} />
                 ))}
               </div>
+              {autoProgress > 0 && (
+                <div className="hold-bar">
+                  <span style={{ transform: `scaleX(${autoProgress})` }} />
+                </div>
+              )}
             </>
           )}
         </div>

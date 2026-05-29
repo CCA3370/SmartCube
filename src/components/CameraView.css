@@ -69,26 +69,25 @@
   right: 0;
   height: 1px;
 }
-/* Auto-capture "hold" feedback: a single SVG stroke grows clockwise along the
- * overlay border as the user holds steady. The viewBox matches the overlay's
- * real pixel size so the corner radius lines up with the frame, and pathLength=1
- * maps stroke-dashoffset 1:1 to 0..1 progress. */
-.hold-progress {
+/* Auto-capture "hold" feedback: a slim progress bar near the bottom of the frame
+ * fills left-to-right as the user holds steady, reaching full just as the frame
+ * is captured. */
+.hold-bar {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
+  left: 10%;
+  right: 10%;
+  bottom: 12px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
 }
-.hold-progress .hold-fill {
-  fill: none;
-  stroke: var(--good);
-  stroke-width: 3;
-  stroke-linecap: round;
-  /* pathLength is normalized to 1; reveal `--p` of the path clockwise from top. */
-  stroke-dasharray: 1;
-  stroke-dashoffset: calc(1 - var(--p, 0));
-  filter: drop-shadow(0 0 6px rgba(52, 199, 89, 0.85));
-  transition: stroke-dashoffset 0.12s linear;
+.hold-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(76, 154, 255, 0.7);
+  transition: transform 0.12s linear;
 }
