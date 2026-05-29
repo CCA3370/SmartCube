@@ -3,6 +3,7 @@ import {
   sampleFace,
   rgb2lab,
   nearestCenter,
+  classifyRelativeToCenters,
   structuralCleanup,
   type RGB,
   type Square,
@@ -17,14 +18,40 @@ import {
   FACE_ORDER,
 } from '../lib/cube';
 
+/** Display RGB for each face label (UI swatches). */
+export const DISPLAY_COLOR: Record<FaceLetter, string> = {
+  U: '#f8f8f8', // white
+  R: '#c41e3a', // red
+  F: '#1c9c4b', // green
+  D: '#ffd500', // yellow
+  L: '#ff7a1a', // orange
+  B: '#1d5cc8', // blue
+};
+
+function hexToRgb(hex: string): RGB {
+  const clean = hex.replace('#', '');
+  const value = Number.parseInt(clean, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+const STANDARD_PALETTE: CenterPalette = FACE_ORDER.reduce((palette, face) => {
+  palette[face] = rgb2lab(hexToRgb(DISPLAY_COLOR[face]));
+  return palette;
+}, {} as CenterPalette);
+
 /**
  * Recognize one face from a captured full-res frame:
  *  1. sample the 9 stickers in screen order (ring-median, logo-safe),
  *  2. de-rotate into net order per the capture step,
- *  3. provisionally label each sticker by nearest center within THIS face.
+ *  3. provisionally label each sticker by the standard color scheme.
  *
- * The provisional label is just for instant on-screen feedback; the definitive
- * labeling happens in `recognizeCube` once all 6 centers are known.
+ * The provisional label is just for instant on-screen feedback during scanning;
+ * the definitive lighting-aware labeling happens in `recognizeCube` once all 6
+ * live centers are known.
  */
 export function recognizeFace(
   frame: ImageData,
@@ -43,20 +70,10 @@ export function recognizeFace(
 }
 
 function provisionalLabels(netRgb: RGB[], face: FaceLetter): FaceLabels {
-  // Without all 6 centers we can't classify reliably; default every sticker to
-  // the face's own color (user corrects in review, and recognizeCube re-labels).
-  return { face, labels: netRgb.map(() => face) };
+  const classified = classifyRelativeToCenters(netRgb.map((rgb) => rgb2lab(rgb)), STANDARD_PALETTE);
+  classified.labels[4] = face;
+  return { face, labels: classified.labels, confidence: classified.confidence };
 }
-
-/** Display RGB for each face label (UI swatches). */
-export const DISPLAY_COLOR: Record<FaceLetter, string> = {
-  U: '#f8f8f8', // white
-  R: '#c41e3a', // red
-  F: '#1c9c4b', // green
-  D: '#ffd500', // yellow
-  L: '#ff7a1a', // orange
-  B: '#1d5cc8', // blue
-};
 
 /**
  * Definitive whole-cube classification: build the 6-center palette from the

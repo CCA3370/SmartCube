@@ -12,6 +12,7 @@ interface FaceGridProps {
   editable?: boolean;
   onEdit?: (index: number, color: FaceLetter) => void;
   size?: number;
+  fill?: boolean;
   suspect?: boolean;
 }
 
@@ -22,12 +23,13 @@ export function FaceGrid({
   editable = false,
   onEdit,
   size = 120,
+  fill = false,
   suspect = false,
 }: FaceGridProps) {
   return (
     <div
       className={`face-grid${suspect ? ' suspect' : ''}`}
-      style={{ width: size, height: size }}
+      style={{ width: fill ? '100%' : size, height: fill ? '100%' : size }}
     >
       {labels.map((label, i) => {
         const isCenter = i === 4;

@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { Readiness } from '../lib/vision/readiness';
+import type { FaceLetter } from '../lib/cube';
+import { FaceGrid } from './FaceGrid';
 import './CameraView.css';
+
+interface CapturedFaceOverlay {
+  labels: FaceLetter[];
+  confidence?: number[];
+  onEdit: (index: number, color: FaceLetter) => void;
+}
 
 interface CameraViewProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -8,6 +16,7 @@ interface CameraViewProps {
   /** 0..1 auto-capture fill. */
   autoProgress: number;
   overlayFraction?: number;
+  capturedFace?: CapturedFaceOverlay;
 }
 
 interface Size {
@@ -55,11 +64,13 @@ export function CameraView({
   readiness,
   autoProgress,
   overlayFraction = 0.7,
+  capturedFace,
 }: CameraViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [overlayRect, setOverlayRect] = useState<OverlayRect | null>(null);
   const pct = overlayFraction * 100;
   const ringColor = readiness.ready ? 'var(--good)' : 'rgba(255,255,255,0.6)';
+  const reviewing = Boolean(capturedFace);
 
   const updateOverlayRect = useCallback(() => {
     const video = videoRef.current;
@@ -112,33 +123,53 @@ export function CameraView({
           width: `${pct}%`,
           aspectRatio: '1 / 1',
         }),
-    borderColor: ringColor,
-    boxShadow: readiness.ready ? '0 0 0 3px rgba(52,199,89,0.35)' : 'none',
+    borderColor: reviewing ? 'var(--warn)' : ringColor,
+    boxShadow: reviewing
+      ? '0 0 0 3px rgba(255,176,32,0.25), 0 16px 38px rgba(0,0,0,0.34)'
+      : readiness.ready ? '0 0 0 3px rgba(52,199,89,0.35)' : 'none',
   };
 
   return (
-    <div ref={containerRef} className="camera-view">
-      <video ref={videoRef} className="camera-video" playsInline muted autoPlay />
-      <div className="camera-overlay">
+    <div ref={containerRef} className={`camera-view${reviewing ? ' reviewing' : ''}`}>
+      <video
+        ref={videoRef}
+        className={`camera-video${reviewing ? ' hidden' : ''}`}
+        playsInline
+        muted
+        autoPlay
+      />
+      <div className={`camera-overlay${reviewing ? ' reviewing' : ''}`}>
         <div
-          className={`align-square${readiness.ready ? ' ready' : ''}${autoProgress > 0 ? ' holding' : ''}`}
+          className={`align-square${readiness.ready ? ' ready' : ''}${autoProgress > 0 ? ' holding' : ''}${reviewing ? ' recognized' : ''}`}
           style={alignStyle}
         >
-          <div className="grid-lines">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <span key={`v${i}`} className="vline" style={{ left: `${(i / 3) * 100}%` }} />
-            ))}
-            {Array.from({ length: 4 }).map((_, i) => (
-              <span key={`h${i}`} className="hline" style={{ top: `${(i / 3) * 100}%` }} />
-            ))}
-          </div>
-          {autoProgress > 0 && (
+          {capturedFace ? (
+            <FaceGrid
+              labels={capturedFace.labels}
+              confidence={capturedFace.confidence}
+              editable
+              onEdit={capturedFace.onEdit}
+              fill
+            />
+          ) : (
             <>
-              <div className="auto-ring" style={{ '--p': autoProgress } as React.CSSProperties} />
-              <div className="auto-sweep" />
-              <div className="hold-track">
-                <span style={{ transform: `scaleX(${autoProgress})` }} />
+              <div className="grid-lines">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <span key={`v${i}`} className="vline" style={{ left: `${(i / 3) * 100}%` }} />
+                ))}
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <span key={`h${i}`} className="hline" style={{ top: `${(i / 3) * 100}%` }} />
+                ))}
               </div>
+              {autoProgress > 0 && (
+                <>
+                  <div className="auto-ring" style={{ '--p': autoProgress } as React.CSSProperties} />
+                  <div className="auto-sweep" />
+                  <div className="hold-track">
+                    <span style={{ transform: `scaleX(${autoProgress})` }} />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

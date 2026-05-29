@@ -8,7 +8,6 @@ import { CameraView } from '../components/CameraView';
 import { ReadinessIndicator } from '../components/ReadinessIndicator';
 import { ProgressDots } from '../components/ProgressDots';
 import { HoldOrientationHint } from '../components/HoldOrientationHint';
-import { FaceGrid } from '../components/FaceGrid';
 import { CenterColorIndicator } from '../components/CenterColorIndicator';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
@@ -92,34 +91,28 @@ export function ScanScreen() {
           readiness={gatedReadiness}
           autoProgress={autoProgress}
           overlayFraction={OVERLAY_FRACTION}
+          capturedFace={
+            lastCapture
+              ? {
+                  labels: lastCapture.labels,
+                  confidence: lastCapture.confidence,
+                  onEdit: (index, color) => dispatch({ type: 'EDIT_STICKER', face: step.face, index, color }),
+                }
+              : undefined
+          }
         />
       )}
 
       <HoldOrientationHint step={step} />
-      <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-        <ReadinessIndicator readiness={readiness} />
-        <CenterColorIndicator reading={centerReading} />
-      </div>
-
-      {lastCapture && (
-        <div
-          className="card"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 14,
-            padding: 12,
-          }}
-        >
-          <FaceGrid labels={lastCapture.labels} size={82} />
-          <div>
-            <strong style={{ display: 'block', fontSize: '0.9rem' }}>Face captured</strong>
-            <span className="subtitle" style={{ display: 'block', margin: '2px 0 0', fontSize: '0.78rem' }}>
-              Check the stickers, then continue.
-            </span>
-          </div>
+      {!lastCapture ? (
+        <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <ReadinessIndicator readiness={readiness} />
+          <CenterColorIndicator reading={centerReading} />
         </div>
+      ) : (
+        <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>
+          Tap a sticker to correct it, or retake this face.
+        </p>
       )}
 
       <div className="row spread">
@@ -133,7 +126,7 @@ export function ScanScreen() {
 
         <div className="row" style={{ gap: 8 }}>
           {lastCapture && (
-            <button className="btn" onClick={doCapture} disabled={!canCapture}>
+            <button className="btn" onClick={() => dispatch({ type: 'RESCAN_FACE', face: step.face })}>
               Retake
             </button>
           )}
