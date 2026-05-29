@@ -2,7 +2,6 @@ import {
   faceCells,
   sampleFace,
   rgb2lab,
-  nearestCenter,
   classifyRelativeToCenters,
   structuralCleanup,
   type RGB,
@@ -43,6 +42,15 @@ const STANDARD_PALETTE: CenterPalette = FACE_ORDER.reduce((palette, face) => {
   return palette;
 }, {} as CenterPalette);
 
+function buildProgressivePalette(captures: Partial<Record<FaceLetter, FaceCapture>>): CenterPalette {
+  const palette = { ...STANDARD_PALETTE };
+  for (const face of FACE_ORDER) {
+    const capture = captures[face];
+    if (capture) palette[face] = rgb2lab(capture.rgb[4]);
+  }
+  return palette;
+}
+
 /**
  * Recognize one face from a captured full-res frame:
  *  1. sample the 9 stickers in screen order (ring-median, logo-safe),
@@ -63,16 +71,20 @@ export function recognizeFace(
   const netRgb = applyRotation(screenRgb, step.rotation);
   const capture: FaceCapture = { face: step.face, rgb: netRgb };
 
-  // Provisional single-face palette: assume the center is this face's color, and
-  // also seed with the standard scheme so the first face still shows something.
-  const labels = provisionalLabels(netRgb, step.face);
+  const labels = classifyFaceWithPalette(capture, STANDARD_PALETTE);
   return { capture, labels };
 }
 
-function provisionalLabels(netRgb: RGB[], face: FaceLetter): FaceLabels {
-  const classified = classifyRelativeToCenters(netRgb.map((rgb) => rgb2lab(rgb)), STANDARD_PALETTE);
-  classified.labels[4] = face;
-  return { face, labels: classified.labels, confidence: classified.confidence };
+export function recognizeCapturedFaces(
+  captures: Partial<Record<FaceLetter, FaceCapture>>,
+): Partial<Record<FaceLetter, FaceLabels>> {
+  const palette = buildProgressivePalette(captures);
+  const out: Partial<Record<FaceLetter, FaceLabels>> = {};
+  for (const face of FACE_ORDER) {
+    const capture = captures[face];
+    if (capture) out[face] = classifyFaceWithPalette(capture, palette);
+  }
+  return out;
 }
 
 /**
@@ -111,7 +123,7 @@ export function classifyFaceWithPalette(
   capture: FaceCapture,
   palette: CenterPalette,
 ): FaceLabels {
-  const labels = capture.rgb.map((c) => nearestCenter(rgb2lab(c), palette).face);
-  labels[4] = capture.face;
-  return { face: capture.face, labels };
+  const classified = classifyRelativeToCenters(capture.rgb.map((rgb) => rgb2lab(rgb)), palette);
+  classified.labels[4] = capture.face;
+  return { face: capture.face, labels: classified.labels, confidence: classified.confidence };
 }

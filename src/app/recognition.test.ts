@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { recognizeFace, DISPLAY_COLOR } from './recognition';
-import type { CaptureStep, FaceLetter } from '../lib/cube';
-import type { Square } from '../lib/color';
+import { recognizeCapturedFaces, recognizeFace, DISPLAY_COLOR } from './recognition';
+import type { CaptureStep, FaceCapture, FaceLetter } from '../lib/cube';
+import type { RGB, Square } from '../lib/color';
 
 function hexToRgba(hex: string): [number, number, number, number] {
   const clean = hex.replace('#', '');
   const value = Number.parseInt(clean, 16);
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255, 255];
+}
+
+function rgb(face: FaceLetter): RGB {
+  const [r, g, b] = hexToRgba(DISPLAY_COLOR[face]);
+  return { r, g, b };
+}
+
+function capture(face: FaceLetter, stickers: FaceLetter[]): FaceCapture {
+  return { face, rgb: stickers.map(rgb) };
 }
 
 function paintCell(data: Uint8ClampedArray, width: number, cell: number, index: number, face: FaceLetter) {
@@ -43,5 +52,20 @@ describe('recognizeFace', () => {
     expect(labels.labels).toEqual(stickers);
     expect(labels.confidence).toHaveLength(9);
     expect(labels.confidence?.every((value) => value > 0)).toBe(true);
+  });
+
+  it('reclassifies already captured faces when a new live center is added', () => {
+    const firstFace = capture('F', ['B', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F']);
+    const firstPass = recognizeCapturedFaces({ F: firstFace });
+
+    const redFaceWithBlueCenter: FaceCapture = {
+      face: 'R',
+      rgb: (['R', 'R', 'R', 'R', 'B', 'R', 'R', 'R', 'R'] as FaceLetter[]).map(rgb),
+    };
+    const secondPass = recognizeCapturedFaces({ F: firstFace, R: redFaceWithBlueCenter });
+
+    expect(firstPass.F?.labels[0]).toBe('B');
+    expect(secondPass.F?.labels[0]).toBe('R');
+    expect(secondPass.F?.confidence?.[0]).toBe(0);
   });
 });

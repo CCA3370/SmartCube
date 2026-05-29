@@ -11,7 +11,7 @@ import { HoldOrientationHint } from '../components/HoldOrientationHint';
 import { CenterColorIndicator } from '../components/CenterColorIndicator';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
-import { recognizeFace } from '../app/recognition';
+import { recognizeCapturedFaces, recognizeFace } from '../app/recognition';
 
 const OVERLAY_FRACTION = 0.7;
 
@@ -49,8 +49,18 @@ export function ScanScreen() {
     const frame = get2d(canvas).getImageData(0, 0, canvas.width, canvas.height);
     const square = centeredFaceSquare(canvas.width, canvas.height, OVERLAY_FRACTION);
     const { capture, labels } = recognizeFace(frame, square, step);
-    dispatch({ type: 'CAPTURE_FACE', face: step.face, capture, labels });
-  }, [camera, dispatch, step]);
+    const captures = { ...state.captures, [step.face]: capture };
+    const refreshedLabels = recognizeCapturedFaces(captures);
+    dispatch({ type: 'CAPTURE_FACE', face: step.face, capture, labels: refreshedLabels[step.face] ?? labels });
+    dispatch({ type: 'SET_RECOGNIZED_LABELS', labels: refreshedLabels });
+  }, [camera, dispatch, state.captures, step]);
+
+  const retake = useCallback(() => {
+    const captures = { ...state.captures };
+    delete captures[step.face];
+    dispatch({ type: 'RESCAN_FACE', face: step.face });
+    dispatch({ type: 'SET_RECOGNIZED_LABELS', labels: recognizeCapturedFaces(captures) });
+  }, [dispatch, state.captures, step.face]);
 
   // Re-arm on each uncaptured scan step; a captured face waits for user review.
   const armed = camera.status === 'live' && !lastCapture;
@@ -126,7 +136,7 @@ export function ScanScreen() {
 
         <div className="row" style={{ gap: 8 }}>
           {lastCapture && (
-            <button className="btn" onClick={() => dispatch({ type: 'RESCAN_FACE', face: step.face })}>
+            <button className="btn" onClick={retake}>
               Retake
             </button>
           )}

@@ -26,7 +26,7 @@ export type AppEvent =
   | { type: 'PREV_FACE' }
   | { type: 'NEXT_FACE' }
   | { type: 'GOTO_REVIEW' }
-  | { type: 'SET_RECOGNIZED_LABELS'; labels: Record<FaceLetter, FaceLabels> }
+  | { type: 'SET_RECOGNIZED_LABELS'; labels: Partial<Record<FaceLetter, FaceLabels>> }
   | { type: 'EDIT_STICKER'; face: FaceLetter; index: number; color: FaceLetter }
   | { type: 'RESCAN_FACE'; face: FaceLetter }
   | { type: 'SOLVER_READY' }
