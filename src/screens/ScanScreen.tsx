@@ -3,11 +3,13 @@ import { useApp } from '../app/AppContext';
 import { useCamera } from '../hooks/useCamera';
 import { useFrameAnalyzer } from '../hooks/useFrameAnalyzer';
 import { useAutoCapture } from '../hooks/useAutoCapture';
+import { useCenterColorCheck } from '../hooks/useCenterColorCheck';
 import { CameraView } from '../components/CameraView';
 import { ReadinessIndicator } from '../components/ReadinessIndicator';
 import { ProgressDots } from '../components/ProgressDots';
 import { HoldOrientationHint } from '../components/HoldOrientationHint';
 import { FaceGrid } from '../components/FaceGrid';
+import { CenterColorIndicator } from '../components/CenterColorIndicator';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
 import { recognizeFace } from '../app/recognition';
@@ -26,6 +28,19 @@ export function ScanScreen() {
   }, []);
 
   const readiness = useFrameAnalyzer(camera.videoRef, camera.status === 'live');
+  const capturedFaces = useMemo(() => Object.keys(state.labels) as FaceLetter[], [state.labels]);
+  const lastCapture = state.labels[step.face];
+  const allCaptured = capturedFaces.length === CAPTURE_SEQUENCE.length;
+  const centerReading = useCenterColorCheck(
+    camera.videoRef,
+    camera.status === 'live',
+    step.toCamera,
+    OVERLAY_FRACTION,
+  );
+  const gatedReadiness = useMemo(
+    () => ({ ...readiness, ready: readiness.ready && centerReading.ok }),
+    [readiness, centerReading.ok],
+  );
 
   const doCapture = useCallback(() => {
     const video = camera.videoRef.current;
@@ -38,12 +53,10 @@ export function ScanScreen() {
     dispatch({ type: 'CAPTURE_FACE', face: step.face, capture, labels });
   }, [camera, dispatch, step]);
 
-  // Auto-capture only after the camera is live and this face isn't captured yet.
-  const armed = camera.status === 'live';
-  const autoProgress = useAutoCapture(readiness, armed, doCapture);
-
-  const capturedFaces = useMemo(() => Object.keys(state.labels) as FaceLetter[], [state.labels]);
-  const lastCapture = state.labels[step.face];
+  // Re-arm on each uncaptured scan step; a captured face waits for user review.
+  const armed = camera.status === 'live' && !lastCapture;
+  const autoProgress = useAutoCapture(gatedReadiness, armed, doCapture, state.scanIndex);
+  const canCapture = camera.status === 'live' && centerReading.ok;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
@@ -76,14 +89,38 @@ export function ScanScreen() {
       ) : (
         <CameraView
           videoRef={camera.videoRef}
-          readiness={readiness}
+          readiness={gatedReadiness}
           autoProgress={autoProgress}
           overlayFraction={OVERLAY_FRACTION}
         />
       )}
 
       <HoldOrientationHint step={step} />
-      <ReadinessIndicator readiness={readiness} />
+      <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <ReadinessIndicator readiness={readiness} />
+        <CenterColorIndicator reading={centerReading} />
+      </div>
+
+      {lastCapture && (
+        <div
+          className="card"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 14,
+            padding: 12,
+          }}
+        >
+          <FaceGrid labels={lastCapture.labels} size={82} />
+          <div>
+            <strong style={{ display: 'block', fontSize: '0.9rem' }}>Face captured</strong>
+            <span className="subtitle" style={{ display: 'block', margin: '2px 0 0', fontSize: '0.78rem' }}>
+              Check the stickers, then continue.
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="row spread">
         <button
@@ -94,23 +131,29 @@ export function ScanScreen() {
           ← Back
         </button>
 
-        {lastCapture && (
-          <div className="row" style={{ gap: 8 }}>
-            <FaceGrid labels={lastCapture.labels} size={48} />
-            <span className="subtitle" style={{ fontSize: '0.78rem' }}>captured</span>
-          </div>
-        )}
-
-        <button className="btn btn-primary" onClick={doCapture} disabled={camera.status !== 'live'}>
-          📸 Capture
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          {lastCapture && (
+            <button className="btn" onClick={doCapture} disabled={!canCapture}>
+              Retake
+            </button>
+          )}
+          {lastCapture ? (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (allCaptured) dispatch({ type: 'GOTO_REVIEW' });
+                else dispatch({ type: 'NEXT_FACE' });
+              }}
+            >
+              {allCaptured ? 'Review all faces →' : 'Next face →'}
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={doCapture} disabled={!canCapture}>
+              📸 Capture
+            </button>
+          )}
+        </div>
       </div>
-
-      {capturedFaces.length === 6 && (
-        <button className="btn" onClick={() => dispatch({ type: 'GOTO_REVIEW' })}>
-          Review all faces →
-        </button>
-      )}
     </div>
   );
 }

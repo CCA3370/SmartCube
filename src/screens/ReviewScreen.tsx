@@ -14,6 +14,16 @@ import {
   type FaceLabels,
 } from '../lib/cube';
 
+function sameArray<T>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((value, i) => value === b[i]);
+}
+
+function sameFaceLabels(a: FaceLabels | undefined, b: FaceLabels): boolean {
+  return Boolean(a && a.face === b.face && sameArray(a.labels, b.labels) && sameArray(a.confidence, b.confidence));
+}
+
 export function ReviewScreen() {
   const { state, dispatch, solver } = useApp();
   const [busy, setBusy] = useState(false);
@@ -26,17 +36,8 @@ export function ReviewScreen() {
     if (!haveAll) return;
     const captures = state.captures as Record<FaceLetter, FaceCapture>;
     const recognized = recognizeCube(captures);
-    // Dispatch edits to sync into the machine (only if different).
-    for (const f of FACE_ORDER) {
-      const cur = state.labels[f]?.labels;
-      const next = recognized[f].labels;
-      if (!cur || cur.join('') !== next.join('')) {
-        next.forEach((color, i) => {
-          if (i !== 4 && (!cur || cur[i] !== color)) {
-            dispatch({ type: 'EDIT_STICKER', face: f, index: i, color });
-          }
-        });
-      }
+    if (FACE_ORDER.some((f) => !sameFaceLabels(state.labels[f], recognized[f]))) {
+      dispatch({ type: 'SET_RECOGNIZED_LABELS', labels: recognized });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

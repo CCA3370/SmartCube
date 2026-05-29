@@ -1,13 +1,15 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { TwistyView } from '../components/TwistyView';
 import { MoveList } from '../components/MoveList';
 import { StepControls } from '../components/StepControls';
-import type { Stepper } from '../lib/twisty';
+import type { Stepper, StepperState } from '../lib/twisty';
 
 export function SolveScreen() {
   const { state, dispatch } = useApp();
   const stepperRef = useRef<Stepper | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const lastSyncedIndexRef = useRef(0);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
@@ -15,15 +17,35 @@ export function SolveScreen() {
   const total = moves.length;
   const raw = state.solution?.raw ?? '';
 
+  const syncStepperState = useCallback(
+    (next: StepperState) => {
+      setIndex(next.index);
+      setPlaying(next.playing);
+      if (lastSyncedIndexRef.current !== next.index) {
+        lastSyncedIndexRef.current = next.index;
+        dispatch({ type: 'STEP_TO', index: next.index });
+      }
+    },
+    [dispatch],
+  );
+
   const onReady = useCallback((stepper: Stepper) => {
+    unsubscribeRef.current?.();
     stepperRef.current = stepper;
-    setIndex(0);
-    setPlaying(false);
+    unsubscribeRef.current = stepper.subscribe(syncStepperState);
+  }, [syncStepperState]);
+
+  useEffect(() => {
+    return () => {
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
+    };
   }, []);
 
   const setStep = useCallback(
     (next: number) => {
       const clamped = Math.max(0, Math.min(total, next));
+      lastSyncedIndexRef.current = clamped;
       setIndex(clamped);
       dispatch({ type: 'STEP_TO', index: clamped });
     },

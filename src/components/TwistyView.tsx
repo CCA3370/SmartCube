@@ -26,6 +26,7 @@ export function TwistyView({ solutionRaw, onReady }: Props) {
     onReadyRef.current(stepper);
 
     return () => {
+      stepper.dispose();
       player.remove();
     };
   }, [solutionRaw]);

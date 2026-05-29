@@ -24,7 +24,17 @@ export interface Stepper {
   pause(): void;
   toStart(): void;
   toEnd(): void;
+  subscribe(listener: StepperListener): () => void;
+  dispose(): void;
 }
+
+export interface StepperState {
+  index: number;
+  playing: boolean;
+  atEnd: boolean;
+}
+
+export type StepperListener = (state: StepperState) => void;
 
 interface AnimationControllerLike {
   play(options: {
@@ -35,10 +45,77 @@ interface AnimationControllerLike {
   pause(): void;
 }
 
+interface FreshProp<T> {
+  addFreshListener(listener: (value: T) => void): void;
+  removeFreshListener(listener: (value: T) => void): void;
+}
+
+interface CurrentLeavesSimplifiedLike {
+  patternIndex: number;
+}
+
+interface DetailedTimelineInfoLike {
+  atStart: boolean;
+  atEnd: boolean;
+}
+
+interface PlayingInfoLike {
+  playing: boolean;
+}
+
+interface TwistyPlayerModelLike {
+  currentLeavesSimplified?: FreshProp<CurrentLeavesSimplifiedLike>;
+  detailedTimelineInfo?: FreshProp<DetailedTimelineInfoLike>;
+  playingInfo?: FreshProp<PlayingInfoLike>;
+}
+
 export function makeStepper(player: TwistyPlayer, total: number): Stepper {
   const ac = () =>
     (player.controller as unknown as { animationController: AnimationControllerLike })
       .animationController;
+  const listeners = new Set<StepperListener>();
+  const unlisteners: Array<() => void> = [];
+  let disposed = false;
+  let state: StepperState = { index: 0, playing: false, atEnd: total === 0 };
+
+  const clampIndex = (i: number) => Math.max(0, Math.min(total, Number.isFinite(i) ? Math.trunc(i) : 0));
+  const emit = (patch: Partial<StepperState>) => {
+    if (disposed) return;
+    const next = {
+      ...state,
+      ...patch,
+      index: patch.index === undefined ? state.index : clampIndex(patch.index),
+    };
+    if (patch.atEnd === true) {
+      next.index = total;
+      next.playing = false;
+    }
+    if (patch.atEnd === false && next.index < total) {
+      next.atEnd = false;
+    }
+    if (next.index === state.index && next.playing === state.playing && next.atEnd === state.atEnd) {
+      return;
+    }
+    state = next;
+    listeners.forEach((listener) => listener(state));
+  };
+
+  const listen = <T,>(prop: FreshProp<T> | undefined, listener: (value: T) => void) => {
+    if (!prop) return;
+    prop.addFreshListener(listener);
+    unlisteners.push(() => prop.removeFreshListener(listener));
+  };
+
+  const model = player.experimentalModel as unknown as TwistyPlayerModelLike;
+  listen(model.currentLeavesSimplified, (value) => {
+    emit({ index: Number(value.patternIndex), atEnd: Number(value.patternIndex) >= total });
+  });
+  listen(model.detailedTimelineInfo, (value) => {
+    emit({ atEnd: value.atEnd, index: value.atStart ? 0 : value.atEnd ? total : state.index });
+  });
+  listen(model.playingInfo, (value) => {
+    emit({ playing: value.playing });
+  });
 
   const next = () => {
     try {
@@ -91,5 +168,20 @@ export function makeStepper(player: TwistyPlayer, total: number): Stepper {
     pause: () => player.pause(),
     toStart: () => player.jumpToStart(),
     toEnd: () => player.jumpToEnd(),
+    subscribe: (listener: StepperListener) => {
+      if (disposed) return () => undefined;
+      listeners.add(listener);
+      listener(state);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      unlisteners.forEach((unlisten) => unlisten());
+      unlisteners.length = 0;
+      listeners.clear();
+    },
   };
 }

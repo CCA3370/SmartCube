@@ -24,7 +24,6 @@ export function FaceGrid({
   size = 120,
   suspect = false,
 }: FaceGridProps) {
-  const cell = size / 3;
   return (
     <div
       className={`face-grid${suspect ? ' suspect' : ''}`}
@@ -44,8 +43,6 @@ export function FaceGrid({
             key={i}
             className={`sticker${isCenter ? ' center' : ''}${low ? ' low' : ''}`}
             style={{
-              width: cell,
-              height: cell,
               background: DISPLAY_COLOR[label],
               cursor: editable && !isCenter ? 'pointer' : 'default',
             }}
