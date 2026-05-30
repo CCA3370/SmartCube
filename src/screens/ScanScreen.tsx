@@ -3,12 +3,10 @@ import { useApp } from '../app/AppContext';
 import { useCamera } from '../hooks/useCamera';
 import { useFrameAnalyzer } from '../hooks/useFrameAnalyzer';
 import { useAutoCapture } from '../hooks/useAutoCapture';
-import { useCenterColorCheck } from '../hooks/useCenterColorCheck';
 import { CameraView } from '../components/CameraView';
 import { ReadinessIndicator } from '../components/ReadinessIndicator';
 import { ProgressDots } from '../components/ProgressDots';
 import { HoldOrientationHint } from '../components/HoldOrientationHint';
-import { CenterColorIndicator } from '../components/CenterColorIndicator';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
 import { recognizeFace } from '../app/recognition';
@@ -30,16 +28,6 @@ export function ScanScreen() {
   const capturedFaces = useMemo(() => Object.keys(state.labels) as FaceLetter[], [state.labels]);
   const lastCapture = state.labels[step.face];
   const allCaptured = capturedFaces.length === CAPTURE_SEQUENCE.length;
-  const centerReading = useCenterColorCheck(
-    camera.videoRef,
-    camera.status === 'live',
-    step.toCamera,
-    OVERLAY_FRACTION,
-  );
-  const gatedReadiness = useMemo(
-    () => ({ ...readiness, ready: readiness.ready && centerReading.ok }),
-    [readiness, centerReading.ok],
-  );
 
   const doCapture = useCallback(() => {
     const video = camera.videoRef.current;
@@ -60,8 +48,8 @@ export function ScanScreen() {
 
   // Re-arm on each uncaptured scan step; a captured face waits for user review.
   const armed = camera.status === 'live' && !lastCapture;
-  const autoProgress = useAutoCapture(gatedReadiness, armed, doCapture, state.scanIndex);
-  const canCapture = camera.status === 'live' && centerReading.ok;
+  const autoProgress = useAutoCapture(readiness, armed, doCapture, state.scanIndex);
+  const canCapture = camera.status === 'live';
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
@@ -94,7 +82,7 @@ export function ScanScreen() {
       ) : (
         <CameraView
           videoRef={camera.videoRef}
-          readiness={gatedReadiness}
+          readiness={readiness}
           autoProgress={autoProgress}
           overlayFraction={OVERLAY_FRACTION}
           capturedFace={
@@ -112,7 +100,6 @@ export function ScanScreen() {
       {!lastCapture ? (
         <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
           <ReadinessIndicator readiness={readiness} />
-          <CenterColorIndicator reading={centerReading} />
         </div>
       ) : (
         <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>

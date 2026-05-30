@@ -5,7 +5,7 @@ import type { CenterPalette } from './classify';
 /**
  * The standard Western color scheme: display hex per face. Single source for both
  * the UI swatches AND the illuminant-independent fallback palette used before the
- * 6 live centers are known (provisional scanning + center-color gating).
+ * 6 live centers are known for provisional scanning.
  */
 export const DISPLAY_COLOR: Record<FaceLetter, string> = {
   U: '#f8f8f8', // white
