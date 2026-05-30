@@ -7,14 +7,22 @@
   background: #0a0d12;
   border-radius: 8px;
   border: 2px solid var(--border);
-  overflow: hidden;
+  /* visible so the color picker can overflow the grid bounds */
+  overflow: visible;
 }
 .face-grid.suspect {
   border-color: var(--warn);
   box-shadow: 0 0 0 2px rgba(255, 176, 32, 0.3);
 }
+.sticker-cell {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
 .sticker {
-  display: block;
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -23,6 +31,7 @@
   border: 1px solid rgba(0, 0, 0, 0.35);
   position: relative;
   padding: 0;
+  container-type: size;
   transition: transform 0.05s;
 }
 .sticker:active {
@@ -30,15 +39,6 @@
 }
 .sticker.center {
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.45);
-}
-.sticker.center::after {
-  content: '•';
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: rgba(0, 0, 0, 0.4);
-  font-size: 1.2em;
 }
 .sticker.low::before {
   content: '';
@@ -50,4 +50,51 @@
   border-radius: 50%;
   background: var(--warn);
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+/* Persistent non-color cue: the face letter on every sticker, readable on both
+   light and dark swatches via a white glyph with a dark outline shadow. */
+.sticker-letter {
+  font-size: 40cqmin;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7), 0 1px 1px rgba(0, 0, 0, 0.55);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Tap-to-pick color menu (replaces the blind 6-step cycle-on-tap). */
+.color-picker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 6px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.color-swatch {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  container-type: size;
+  transition: transform 0.05s;
+}
+.color-swatch:hover {
+  transform: scale(1.08);
+}
+.color-swatch.selected {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
 }

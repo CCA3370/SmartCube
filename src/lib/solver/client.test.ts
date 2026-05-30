@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import Cube from 'cubejs';
 import 'cubejs/lib/solve.js';
-import { parseMoves } from './client';
+import { parseMoves, SolverClient } from './client';
+import type { SolverRequest, SolverResponse } from './types';
 
 describe('parseMoves', () => {
   it('splits a raw solution into moves', () => {
@@ -46,5 +47,99 @@ describe('cubejs solver contract', () => {
     const solution = c.solve(22);
     c.move(solution);
     expect(c.isSolved()).toBe(true);
+  });
+});
+
+// A minimal stand-in for the solver Web Worker: records posted messages and lets
+// the test emit worker responses / a fatal error. Exercises the SolverClient's
+// request/response correlation and its failure handling without a real worker.
+class FakeWorker extends EventTarget {
+  posted: SolverRequest[] = [];
+  terminated = false;
+  postMessage(msg: SolverRequest) {
+    this.posted.push(msg);
+  }
+  terminate() {
+    this.terminated = true;
+  }
+  emit(data: SolverResponse) {
+    this.dispatchEvent(new MessageEvent('message', { data }));
+  }
+  emitError(message?: string) {
+    let ev: Event;
+    try {
+      ev = new ErrorEvent('error', { message });
+    } catch {
+      ev = new Event('error');
+    }
+    this.dispatchEvent(ev);
+  }
+  lastSolveId(): number {
+    for (let i = this.posted.length - 1; i >= 0; i--) {
+      const m = this.posted[i];
+      if (m.type === 'solve') return m.id;
+    }
+    throw new Error('no solve request was posted');
+  }
+}
+
+describe('SolverClient', () => {
+  function setup() {
+    const fake = new FakeWorker();
+    const client = new SolverClient(fake as unknown as Worker);
+    return { fake, client };
+  }
+
+  it('resolves init() when the worker reports ready', async () => {
+    const { fake, client } = setup();
+    const p = client.init();
+    expect(fake.posted).toContainEqual({ type: 'init' });
+    fake.emit({ type: 'ready' });
+    await expect(p).resolves.toBeUndefined();
+    expect(client.ready).toBe(true);
+  });
+
+  it('correlates a solve response by id and parses the moves', async () => {
+    const { fake, client } = setup();
+    const p = client.solve('does-not-matter-to-the-fake');
+    const id = fake.lastSolveId();
+    fake.emit({ type: 'solved', id, raw: "R U' F2" });
+    await expect(p).resolves.toEqual({ moves: ['R', "U'", 'F2'], raw: "R U' F2" });
+  });
+
+  it('rejects a solve on an error response for its id', async () => {
+    const { fake, client } = setup();
+    const p = client.solve('x');
+    fake.emit({ type: 'error', id: fake.lastSolveId(), message: 'unsolvable' });
+    await expect(p).rejects.toThrow('unsolvable');
+  });
+
+  it('rejects init() on an init-phase error (worker uses id -1)', async () => {
+    const { fake, client } = setup();
+    const p = client.init();
+    fake.emit({ type: 'error', id: -1, message: 'table build failed' });
+    await expect(p).rejects.toThrow('table build failed');
+  });
+
+  it('rejects a solve that never gets a response (timeout)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = setup();
+      const p = client.solve('x');
+      const assertion = expect(p).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(15000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects all pending init/solve work when the worker crashes', async () => {
+    const { fake, client } = setup();
+    const initP = client.init();
+    const solveP = client.solve('x');
+    fake.emitError('boom');
+    await expect(initP).rejects.toThrow(/crashed/);
+    await expect(solveP).rejects.toThrow(/crashed/);
   });
 });

@@ -77,7 +77,7 @@ export function computeMetrics(
   const sharpness = n ? lapSq / n - lapMean * lapMean : 0;
 
   // Mean absolute difference vs previous frame.
-  let stability = 0;
+  let stability: number;
   if (prevGray && prevGray.length === gray.length) {
     let diff = 0;
     for (let k = 0; k < gray.length; k++) diff += Math.abs(gray[k] - prevGray[k]);

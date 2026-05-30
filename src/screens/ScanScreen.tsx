@@ -11,7 +11,7 @@ import { HoldOrientationHint } from '../components/HoldOrientationHint';
 import { CenterColorIndicator } from '../components/CenterColorIndicator';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
-import { recognizeCapturedFaces, recognizeFace } from '../app/recognition';
+import { recognizeFace } from '../app/recognition';
 
 const OVERLAY_FRACTION = 0.7;
 
@@ -48,19 +48,15 @@ export function ScanScreen() {
     if (!canvas) return;
     const frame = get2d(canvas).getImageData(0, 0, canvas.width, canvas.height);
     const square = centeredFaceSquare(canvas.width, canvas.height, OVERLAY_FRACTION);
-    const { capture, labels } = recognizeFace(frame, square, step);
-    const captures = { ...state.captures, [step.face]: capture };
-    const refreshedLabels = recognizeCapturedFaces(captures);
-    dispatch({ type: 'CAPTURE_FACE', face: step.face, capture, labels: refreshedLabels[step.face] ?? labels });
-    dispatch({ type: 'SET_RECOGNIZED_LABELS', labels: refreshedLabels });
-  }, [camera, dispatch, state.captures, step]);
+    // recognizeFace de-rotates the sampled stickers into net order and builds the
+    // FaceCapture; the reducer re-derives all faces' labels from it.
+    const { capture } = recognizeFace(frame, square, step);
+    dispatch({ type: 'CAPTURE_FACE', face: step.face, capture });
+  }, [camera, dispatch, step]);
 
   const retake = useCallback(() => {
-    const captures = { ...state.captures };
-    delete captures[step.face];
     dispatch({ type: 'RESCAN_FACE', face: step.face });
-    dispatch({ type: 'SET_RECOGNIZED_LABELS', labels: recognizeCapturedFaces(captures) });
-  }, [dispatch, state.captures, step.face]);
+  }, [dispatch, step.face]);
 
   // Re-arm on each uncaptured scan step; a captured face waits for user review.
   const armed = camera.status === 'live' && !lastCapture;

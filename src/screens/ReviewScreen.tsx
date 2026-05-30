@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { FaceGrid } from '../components/FaceGrid';
-import { recognizeCube } from '../app/recognition';
 import {
   FACE_ORDER,
   FACE_COLOR_NAME,
@@ -10,37 +9,12 @@ import {
   validate,
   describeError,
   type FaceLetter,
-  type FaceCapture,
   type FaceLabels,
 } from '../lib/cube';
-
-function sameArray<T>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean {
-  if (a === b) return true;
-  if (!a || !b || a.length !== b.length) return false;
-  return a.every((value, i) => value === b[i]);
-}
-
-function sameFaceLabels(a: FaceLabels | undefined, b: FaceLabels): boolean {
-  return Boolean(a && a.face === b.face && sameArray(a.labels, b.labels) && sameArray(a.confidence, b.confidence));
-}
 
 export function ReviewScreen() {
   const { state, dispatch, solver } = useApp();
   const [busy, setBusy] = useState(false);
-
-  // On entry, run the definitive whole-cube classification (relative to the 6
-  // live centers) once, if labels look provisional. We only do this if we have
-  // all six captures.
-  useEffect(() => {
-    const haveAll = FACE_ORDER.every((f) => state.captures[f]);
-    if (!haveAll) return;
-    const captures = state.captures as Record<FaceLetter, FaceCapture>;
-    const recognized = recognizeCube(captures);
-    if (FACE_ORDER.some((f) => !sameFaceLabels(state.labels[f], recognized[f]))) {
-      dispatch({ type: 'SET_RECOGNIZED_LABELS', labels: recognized });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const facelets = useMemo(() => {
     const haveAll = FACE_ORDER.every((f) => state.labels[f]);
