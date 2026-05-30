@@ -1,7 +1,16 @@
-import type { Move, Solution, SolverRequest, SolverResponse } from './types';
+import type { Move, Solution, SolverProgress, SolverRequest, SolverResponse } from './types';
 
 /** Reject a solve if the worker hasn't answered within this long (covers a stuck worker). */
 const SOLVE_TIMEOUT_MS = 15000;
+
+/**
+ * Reject init if the worker goes silent for this long. This is a STALL timeout,
+ * not a total-time budget: the timer resets on every progress message, so a slow
+ * machine grinding through the table build is fine, but a worker that never loads
+ * (bad bundle, blocked module import) or dies mid-build fails fast with a clear
+ * error instead of leaving the UI stuck on "Solving…" forever.
+ */
+const INIT_STALL_MS = 20000;
 
 /** Split a raw solver string like "R U' F2" into individual moves. */
 export function parseMoves(raw: string): Move[] {
@@ -19,16 +28,20 @@ interface ReadyWaiter {
   reject: (e: Error) => void;
 }
 
+export type ProgressListener = (p: SolverProgress) => void;
+
 /**
  * Typed client around the solver Web Worker. Owns the request/response
  * correlation (by id) and exposes a promise-based API. The worker hosts cubejs;
- * call `init()` early (e.g. when scanning starts) so the ~4-5s table build
- * overlaps with the user's scanning time and `solve()` is sub-second.
+ * call `init()` early (e.g. when scanning starts) so the table build overlaps
+ * with the user's scanning time and `solve()` is sub-second.
  *
- * Every promise is guaranteed to settle: a per-solve timeout, the worker's own
- * `error`/`messageerror` events, and an init-phase error (the worker reports
- * init failures with id -1) all reject the relevant pending promises instead of
- * leaving them hanging.
+ * Every promise is guaranteed to settle: a per-solve timeout, a per-init STALL
+ * timeout (reset on each progress message), the worker's own `error`/
+ * `messageerror` events, and an init-phase error (the worker reports init
+ * failures with id -1) all reject the relevant pending promises instead of
+ * leaving them hanging. After an init failure the client resets, so a later
+ * `init()`/`solve()` retries the build.
  */
 export class SolverClient {
   private worker: Worker;
@@ -36,6 +49,11 @@ export class SolverClient {
   private pending = new Map<number, PendingSolve>();
   private readyWaiters: ReadyWaiter[] = [];
   private _ready = false;
+  /** True once an init request has been posted and not yet settled. */
+  private initInFlight = false;
+  private initStallTimer: ReturnType<typeof setTimeout> | null = null;
+  private progressListeners = new Set<ProgressListener>();
+  private _lastProgress: SolverProgress | null = null;
 
   constructor(worker: Worker) {
     this.worker = worker;
@@ -48,18 +66,32 @@ export class SolverClient {
     return this._ready;
   }
 
+  /** The most recent progress report, if any. */
+  get lastProgress(): SolverProgress | null {
+    return this._lastProgress;
+  }
+
   private onMessage = (ev: MessageEvent<SolverResponse>) => {
     const msg = ev.data;
     switch (msg.type) {
       case 'ready': {
         this._ready = true;
+        this.initInFlight = false;
+        this.clearInitStall();
         const waiters = this.readyWaiters;
         this.readyWaiters = [];
         for (const w of waiters) w.resolve();
         return;
       }
-      case 'progress':
+      case 'progress': {
+        const { done, total, label, cached } = msg;
+        const p: SolverProgress = { done, total, label, cached };
+        this._lastProgress = p;
+        // Forward progress, and reset the stall watchdog: the worker is alive.
+        this.armInitStall();
+        for (const l of this.progressListeners) l(p);
         return;
+      }
       case 'solved': {
         const p = this.pending.get(msg.id);
         if (p) {
@@ -79,7 +111,7 @@ export class SolverClient {
         }
         // No pending solve owns this id (the worker uses id -1 for init-phase
         // failures): treat it as an init error and reject anyone awaiting ready.
-        this.rejectReadyWaiters(new Error(msg.message));
+        this.failInit(new Error(msg.message));
         return;
       }
     }
@@ -91,7 +123,24 @@ export class SolverClient {
     this.rejectAll(new Error(`Solver worker crashed${detail}`));
   };
 
-  private rejectReadyWaiters(err: Error) {
+  private armInitStall() {
+    this.clearInitStall();
+    this.initStallTimer = setTimeout(() => {
+      this.failInit(new Error('Solver init stalled (no progress). The solver worker may have failed to load.'));
+    }, INIT_STALL_MS);
+  }
+
+  private clearInitStall() {
+    if (this.initStallTimer !== null) {
+      clearTimeout(this.initStallTimer);
+      this.initStallTimer = null;
+    }
+  }
+
+  /** Reject everyone awaiting `ready` and reset so a later init() can retry. */
+  private failInit(err: Error) {
+    this.clearInitStall();
+    this.initInFlight = false;
     const waiters = this.readyWaiters;
     this.readyWaiters = [];
     for (const w of waiters) w.reject(err);
@@ -103,16 +152,32 @@ export class SolverClient {
       p.reject(err);
     }
     this.pending.clear();
-    this.rejectReadyWaiters(err);
+    this.failInit(err);
   }
 
-  /** Kick off table initialization; resolves when the worker reports ready. */
+  /** Subscribe to table-build progress. Returns an unsubscribe fn. */
+  onProgress(listener: ProgressListener): () => void {
+    this.progressListeners.add(listener);
+    return () => {
+      this.progressListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Kick off table initialization; resolves when the worker reports ready.
+   * Concurrent/repeat callers attach to the same in-flight init rather than
+   * re-posting; only the first posts `{type:'init'}` and arms the stall timer.
+   */
   init(): Promise<void> {
     if (this._ready) return Promise.resolve();
     const p = new Promise<void>((resolve, reject) => {
       this.readyWaiters.push({ resolve, reject });
     });
-    this.post({ type: 'init' });
+    if (!this.initInFlight) {
+      this.initInFlight = true;
+      this.armInitStall();
+      this.post({ type: 'init' });
+    }
     return p;
   }
 
@@ -129,6 +194,7 @@ export class SolverClient {
   }
 
   dispose() {
+    this.clearInitStall();
     this.worker.removeEventListener('message', this.onMessage);
     this.worker.removeEventListener('error', this.onFatal);
     this.worker.removeEventListener('messageerror', this.onFatal);

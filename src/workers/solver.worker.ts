@@ -4,53 +4,128 @@ import Cube from 'cubejs';
 // attaches Cube.initSolver() and Cube.prototype.solve(). Without it, the package
 // default only exposes modeling (fromString/random) and initSolver is undefined.
 import 'cubejs/lib/solve.js';
-import type { SolverRequest, SolverResponse } from '../lib/solver/types';
+import type { SolverRequest, SolverResponse, SolverProgress } from '../lib/solver/types';
+import {
+  BUILD_STEPS,
+  TOTAL_WEIGHT,
+  buildStep,
+  snapshotTables,
+  restoreTables,
+  type CubejsStatic,
+} from '../lib/solver/tables';
+import { loadTables, saveTables } from '../lib/solver/tableCache';
 
-// Web Worker that hosts the cubejs Kociemba two-phase solver. Table init
-// (Cube.initSolver) blocks for several seconds, so it lives off the main thread
-// and is kicked off as soon as the app starts scanning.
+// Web Worker that hosts the cubejs Kociemba two-phase solver. The lookup tables
+// take ~4-5s to build, so the work lives off the main thread and is kicked off
+// as soon as the app starts. The build is driven one table at a time so we can
+// post real progress, and the finished tables are cached in IndexedDB so repeat
+// visits rehydrate near-instantly.
 
-let initialized = false;
+const CubeTables = Cube as unknown as CubejsStatic;
+
+/** A single in-flight init; both `init` and the solve fallback await it. */
+let initPromise: Promise<void> | null = null;
 
 function post(msg: SolverResponse) {
   (self as unknown as Worker).postMessage(msg);
+}
+
+function postProgress(p: SolverProgress) {
+  post({ type: 'progress', ...p });
+}
+
+/** Yield to the event loop so a posted progress message can flush to the UI. */
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+// Catch any uncaught errors in the worker and report them.
+self.addEventListener('error', (ev: ErrorEvent) => {
+  post({ type: 'error', id: -1, message: `Worker error: ${ev.message}` });
+});
+
+// Post a heartbeat immediately on load so the client knows the worker is alive.
+// This helps diagnose "worker never loaded" vs "worker loaded but init failed".
+try {
+  post({ type: 'progress', done: 0, total: TOTAL_WEIGHT, label: 'Worker loaded', cached: false });
+} catch (e) {
+  // If we can't even post, the worker is fundamentally broken.
+  console.error('Worker failed to post initial message:', e);
+}
+
+async function buildTables(): Promise<void> {
+  // 1. Try the persistent cache first — a hit makes the solver effectively
+  //    instant on repeat visits.
+  try {
+    const cached = await loadTables();
+    if (restoreTables(CubeTables, cached)) {
+      postProgress({ done: TOTAL_WEIGHT, total: TOTAL_WEIGHT, label: 'Ready', cached: true });
+      return;
+    }
+  } catch {
+    // Fall through to fresh build on any cache error.
+  }
+
+  // 2. Staged build. Post progress after each table; yield between steps so the
+  //    progress message reaches the main thread before the next (blocking) step.
+  let done = 0;
+  postProgress({ done, total: TOTAL_WEIGHT, label: 'Starting', cached: false });
+  for (const step of BUILD_STEPS) {
+    buildStep(CubeTables, step);
+    done += step.weight;
+    postProgress({ done, total: TOTAL_WEIGHT, label: step.label, cached: false });
+    await tick();
+  }
+
+  // 3. Cache for next time (best-effort; never blocks readiness).
+  try {
+    void saveTables(snapshotTables(CubeTables));
+  } catch {
+    // ignore — caching is a pure optimization
+  }
+}
+
+/** Idempotent: returns the shared init promise, retrying after a prior failure. */
+function ensureInit(): Promise<void> {
+  if (!initPromise) {
+    initPromise = buildTables().catch((e) => {
+      // Clear so a later init/solve can retry from scratch.
+      initPromise = null;
+      throw e;
+    });
+  }
+  return initPromise;
 }
 
 self.addEventListener('message', (ev: MessageEvent<SolverRequest>) => {
   const msg = ev.data;
   switch (msg.type) {
     case 'init': {
-      if (initialized) {
-        post({ type: 'ready' });
-        return;
-      }
-      post({ type: 'progress', phase: 'init' });
-      try {
-        Cube.initSolver();
-        initialized = true;
-        post({ type: 'ready' });
-      } catch (e) {
-        post({ type: 'error', id: -1, message: errMsg(e) });
-      }
+      // Post an immediate progress message so the client knows the worker loaded.
+      postProgress({ done: 0, total: TOTAL_WEIGHT, label: 'Starting', cached: false });
+      ensureInit().then(
+        () => post({ type: 'ready' }),
+        (e) => post({ type: 'error', id: -1, message: errMsg(e) }),
+      );
       return;
     }
     case 'solve': {
-      try {
-        if (!initialized) {
-          Cube.initSolver();
-          initialized = true;
-          post({ type: 'ready' });
-        }
-        const cube = Cube.fromString(msg.facelets);
-        const raw: string = cube.solve(msg.maxDepth ?? 22);
-        if (typeof raw !== 'string') {
-          post({ type: 'error', id: msg.id, message: 'Solver returned no solution for this state.' });
-          return;
-        }
-        post({ type: 'solved', id: msg.id, raw: raw.trim() });
-      } catch (e) {
-        post({ type: 'error', id: msg.id, message: errMsg(e) });
-      }
+      ensureInit().then(
+        () => {
+          try {
+            const cube = Cube.fromString(msg.facelets);
+            const raw: string = cube.solve(msg.maxDepth ?? 22);
+            if (typeof raw !== 'string') {
+              post({ type: 'error', id: msg.id, message: 'Solver returned no solution for this state.' });
+              return;
+            }
+            post({ type: 'solved', id: msg.id, raw: raw.trim() });
+          } catch (e) {
+            post({ type: 'error', id: msg.id, message: errMsg(e) });
+          }
+        },
+        (e) => post({ type: 'error', id: msg.id, message: errMsg(e) }),
+      );
       return;
     }
   }

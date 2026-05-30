@@ -1,5 +1,5 @@
 import type { FaceLetter, FaceCapture, FaceLabels, ValidationResult } from '../lib/cube';
-import type { Solution } from '../lib/solver/types';
+import type { Solution, SolverProgress } from '../lib/solver/types';
 import { CAPTURE_SEQUENCE, FACE_ORDER } from '../lib/cube';
 import { recognizeCapturedFaces, recognizeCube } from './recognition';
 
@@ -16,6 +16,10 @@ export interface AppState {
   validation: ValidationResult | null;
   solution: Solution | null;
   solverReady: boolean;
+  /** Latest table-build progress (for the progress bar), or null before any. */
+  solverProgress: SolverProgress | null;
+  /** Set if solver init failed; surfaced with a Retry affordance. */
+  solverError: string | null;
 }
 
 export type AppEvent =
@@ -27,6 +31,9 @@ export type AppEvent =
   | { type: 'EDIT_STICKER'; face: FaceLetter; index: number; color: FaceLetter }
   | { type: 'RESCAN_FACE'; face: FaceLetter }
   | { type: 'SOLVER_READY' }
+  | { type: 'SOLVER_PROGRESS'; progress: SolverProgress }
+  | { type: 'SOLVER_ERROR'; message: string }
+  | { type: 'SOLVER_RETRY' }
   | { type: 'SOLVE_OK'; solution: Solution }
   | { type: 'SET_VALIDATION'; result: ValidationResult }
   | { type: 'FINISH' }
@@ -40,6 +47,8 @@ export const initialState: AppState = {
   validation: null,
   solution: null,
   solverReady: false,
+  solverProgress: null,
+  solverError: null,
 };
 
 /**
@@ -59,7 +68,12 @@ function toReview(state: AppState): AppState {
 export function reducer(state: AppState, event: AppEvent): AppState {
   switch (event.type) {
     case 'START':
-      return { ...initialState, screen: 'scan', solverReady: state.solverReady };
+      return {
+        ...initialState,
+        screen: 'scan',
+        solverReady: state.solverReady,
+        solverProgress: state.solverProgress,
+      };
 
     case 'CAPTURE_FACE': {
       const captures = { ...state.captures, [event.face]: event.capture };
@@ -111,7 +125,16 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     }
 
     case 'SOLVER_READY':
-      return { ...state, solverReady: true };
+      return { ...state, solverReady: true, solverError: null };
+
+    case 'SOLVER_PROGRESS':
+      return { ...state, solverProgress: event.progress };
+
+    case 'SOLVER_ERROR':
+      return { ...state, solverError: event.message };
+
+    case 'SOLVER_RETRY':
+      return { ...state, solverError: null };
 
     case 'SET_VALIDATION':
       return { ...state, validation: event.result };
@@ -123,7 +146,11 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       return { ...state, screen: 'done' };
 
     case 'RESTART':
-      return { ...initialState, solverReady: state.solverReady };
+      return {
+        ...initialState,
+        solverReady: state.solverReady,
+        solverProgress: state.solverProgress,
+      };
 
     default:
       return state;

@@ -135,11 +135,16 @@ describe('app machine', () => {
     expect(s.solution!.moves).toEqual(['R', "U'"]);
   });
 
-  it('RESTART preserves solverReady', () => {
-    let s = { ...initialState, solverReady: true };
-    s = reducer(s, { type: 'START' });
+  it('RESTART preserves solverReady and solverProgress', () => {
+    const initial: AppState = {
+      ...initialState,
+      solverReady: true,
+      solverProgress: { done: 10, total: 10, label: 'Ready', cached: true },
+    };
+    let s = reducer(initial, { type: 'START' });
     s = reducer(s, { type: 'RESTART' });
     expect(s.screen).toBe('welcome');
     expect(s.solverReady).toBe(true);
+    expect(s.solverProgress).toEqual({ done: 10, total: 10, label: 'Ready', cached: true });
   });
 });

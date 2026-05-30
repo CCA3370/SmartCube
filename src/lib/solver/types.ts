@@ -8,6 +8,20 @@ export interface Solution {
   raw: string;
 }
 
+/**
+ * Table-build progress. `done`/`total` are WEIGHTED step counts (pruning tables
+ * cost far more than move tables), so the ratio tracks real wall-clock progress
+ * rather than a naive table count. `label` is a short human-facing stage name.
+ * `cached` is true when the tables were rehydrated from IndexedDB (near-instant),
+ * so the UI can skip showing a long progress bar.
+ */
+export interface SolverProgress {
+  done: number;
+  total: number;
+  label: string;
+  cached: boolean;
+}
+
 // --- Worker message protocol (main thread <-> solver.worker.ts) ---
 
 export type SolverRequest =
@@ -16,6 +30,6 @@ export type SolverRequest =
 
 export type SolverResponse =
   | { type: 'ready' }
-  | { type: 'progress'; phase: 'init' }
+  | ({ type: 'progress' } & SolverProgress)
   | { type: 'solved'; id: number; raw: string }
   | { type: 'error'; id: number; message: string };

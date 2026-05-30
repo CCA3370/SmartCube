@@ -1,7 +1,8 @@
 import { useApp } from '../app/AppContext';
+import { SolverProgress } from '../components/SolverProgress';
 
 export function WelcomeScreen() {
-  const { dispatch, state } = useApp();
+  const { dispatch, state, retrySolverInit } = useApp();
   return (
     <div className="center-col fade-in">
       <div style={{ fontSize: '3.5rem' }}>🧩</div>
@@ -25,9 +26,20 @@ export function WelcomeScreen() {
       <button className="btn btn-primary" onClick={() => dispatch({ type: 'START' })}>
         Start camera & scan
       </button>
-      <p className="subtitle" style={{ fontSize: '0.8rem' }}>
-        {state.solverReady ? 'Solver ready.' : 'Preparing the solver…'} Camera access is required.
-      </p>
+
+      {state.solverProgress || state.solverError ? (
+        <div style={{ width: '100%', maxWidth: 440 }}>
+          <SolverProgress
+            progress={state.solverProgress}
+            error={state.solverError}
+            onRetry={retrySolverInit}
+          />
+        </div>
+      ) : (
+        <p className="subtitle" style={{ fontSize: '0.8rem' }}>
+          {state.solverReady ? 'Solver ready.' : 'Preparing the solver…'} Camera access is required.
+        </p>
+      )}
     </div>
   );
 }

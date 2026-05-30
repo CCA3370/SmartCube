@@ -142,4 +142,68 @@ describe('SolverClient', () => {
     await expect(initP).rejects.toThrow(/crashed/);
     await expect(solveP).rejects.toThrow(/crashed/);
   });
+
+  it('forwards progress messages via onProgress callback', async () => {
+    const { fake, client } = setup();
+    const progress: unknown[] = [];
+    client.onProgress((p) => progress.push(p));
+    client.init();
+    fake.emit({ type: 'progress', done: 5, total: 10, label: 'Building', cached: false });
+    fake.emit({ type: 'progress', done: 10, total: 10, label: 'Ready', cached: false });
+    fake.emit({ type: 'ready' });
+    await vi.waitFor(() => expect(progress).toHaveLength(2));
+    expect(progress[0]).toEqual({ done: 5, total: 10, label: 'Building', cached: false });
+    expect(progress[1]).toEqual({ done: 10, total: 10, label: 'Ready', cached: false });
+  });
+
+  it('rejects init if no progress arrives within the stall timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = setup();
+      const p = client.init();
+      const assertion = expect(p).rejects.toThrow(/stalled/);
+      await vi.advanceTimersByTimeAsync(20000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('resets the stall timer on each progress message', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fake, client } = setup();
+      const p = client.init();
+      // Advance 15s, post progress (resets the timer), advance another 15s, then ready.
+      await vi.advanceTimersByTimeAsync(15000);
+      fake.emit({ type: 'progress', done: 5, total: 10, label: 'Building', cached: false });
+      await vi.advanceTimersByTimeAsync(15000);
+      fake.emit({ type: 'ready' });
+      await expect(p).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('duplicate init() calls attach to the same in-flight request', async () => {
+    const { fake, client } = setup();
+    const p1 = client.init();
+    const p2 = client.init();
+    expect(fake.posted.filter((m) => m.type === 'init')).toHaveLength(1);
+    fake.emit({ type: 'ready' });
+    await expect(p1).resolves.toBeUndefined();
+    await expect(p2).resolves.toBeUndefined();
+  });
+
+  it('allows retry after an init error', async () => {
+    const { fake, client } = setup();
+    const p1 = client.init();
+    fake.emit({ type: 'error', id: -1, message: 'first attempt failed' });
+    await expect(p1).rejects.toThrow('first attempt failed');
+    // Retry should post a fresh init.
+    const p2 = client.init();
+    expect(fake.posted.filter((m) => m.type === 'init')).toHaveLength(2);
+    fake.emit({ type: 'ready' });
+    await expect(p2).resolves.toBeUndefined();
+  });
 });
