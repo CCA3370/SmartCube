@@ -4,7 +4,7 @@ import {
   rgb2lab,
   classifyRelativeToCenters,
   structuralCleanup,
-  type RGB,
+  STANDARD_PALETTE,
   type Square,
   type CenterPalette,
 } from '../lib/color';
@@ -16,31 +16,6 @@ import {
   type FaceLabels,
   FACE_ORDER,
 } from '../lib/cube';
-
-/** Display RGB for each face label (UI swatches). */
-export const DISPLAY_COLOR: Record<FaceLetter, string> = {
-  U: '#f8f8f8', // white
-  R: '#c41e3a', // red
-  F: '#1c9c4b', // green
-  D: '#ffd500', // yellow
-  L: '#ff7a1a', // orange
-  B: '#1d5cc8', // blue
-};
-
-function hexToRgb(hex: string): RGB {
-  const clean = hex.replace('#', '');
-  const value = Number.parseInt(clean, 16);
-  return {
-    r: (value >> 16) & 255,
-    g: (value >> 8) & 255,
-    b: value & 255,
-  };
-}
-
-const STANDARD_PALETTE: CenterPalette = FACE_ORDER.reduce((palette, face) => {
-  palette[face] = rgb2lab(hexToRgb(DISPLAY_COLOR[face]));
-  return palette;
-}, {} as CenterPalette);
 
 function buildProgressivePalette(captures: Partial<Record<FaceLetter, FaceCapture>>): CenterPalette {
   const palette = { ...STANDARD_PALETTE };

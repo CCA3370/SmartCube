@@ -15,9 +15,6 @@ export interface AppState {
   validation: ValidationResult | null;
   solution: Solution | null;
   solverReady: boolean;
-  solving: boolean;
-  stepIndex: number;
-  error: string | null;
 }
 
 export type AppEvent =
@@ -30,12 +27,8 @@ export type AppEvent =
   | { type: 'EDIT_STICKER'; face: FaceLetter; index: number; color: FaceLetter }
   | { type: 'RESCAN_FACE'; face: FaceLetter }
   | { type: 'SOLVER_READY' }
-  | { type: 'SOLVE_START' }
   | { type: 'SOLVE_OK'; solution: Solution }
-  | { type: 'VALIDATION_FAILED'; result: ValidationResult }
-  | { type: 'SOLVE_ERROR'; message: string }
   | { type: 'SET_VALIDATION'; result: ValidationResult }
-  | { type: 'STEP_TO'; index: number }
   | { type: 'FINISH' }
   | { type: 'RESTART' };
 
@@ -47,9 +40,6 @@ export const initialState: AppState = {
   validation: null,
   solution: null,
   solverReady: false,
-  solving: false,
-  stepIndex: 0,
-  error: null,
 };
 
 export function reducer(state: AppState, event: AppEvent): AppState {
@@ -108,29 +98,11 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     case 'SOLVER_READY':
       return { ...state, solverReady: true };
 
-    case 'SOLVE_START':
-      return { ...state, solving: true, error: null };
-
     case 'SET_VALIDATION':
       return { ...state, validation: event.result };
 
-    case 'VALIDATION_FAILED':
-      return { ...state, solving: false, validation: event.result };
-
     case 'SOLVE_OK':
-      return {
-        ...state,
-        solving: false,
-        solution: event.solution,
-        stepIndex: 0,
-        screen: 'solve',
-      };
-
-    case 'SOLVE_ERROR':
-      return { ...state, solving: false, error: event.message };
-
-    case 'STEP_TO':
-      return { ...state, stepIndex: event.index };
+      return { ...state, solution: event.solution, screen: 'solve' };
 
     case 'FINISH':
       return { ...state, screen: 'done' };

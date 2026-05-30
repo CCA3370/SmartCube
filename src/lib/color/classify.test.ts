@@ -82,6 +82,30 @@ describe('classification', () => {
     for (const l of labels) counts[l] = (counts[l] ?? 0) + 1;
     for (const f of faces) expect(counts[f]).toBe(9);
   });
+
+  it('structuralCleanup flags reassigned stickers with low (negative) confidence', () => {
+    const pal = palette();
+    const faces = Object.keys(SCHEME) as FaceLetter[];
+    const solved: LAB[] = [];
+    for (const f of faces) {
+      for (let i = 0; i < 9; i++) solved.push(rgb2lab({ r: SCHEME[f][0], g: SCHEME[f][1], b: SCHEME[f][2] }));
+    }
+
+    // Clean cube: every sticker sits on its own center, so all margins are positive.
+    const clean = structuralCleanup(solved, pal);
+    expect(Math.min(...clean.confidence)).toBeGreaterThan(0);
+
+    // Force a count violation: paint one white (U) sticker pure red (R -> 10, U -> 8).
+    // Rebalancing moves one R-assigned sticker to U; that sticker's assigned label
+    // is then NOT its nearest center, so its margin is negative and it gets flagged.
+    const violating = solved.slice();
+    violating[0] = rgb2lab({ r: SCHEME.R[0], g: SCHEME.R[1], b: SCHEME.R[2] });
+    const fixed = structuralCleanup(violating, pal);
+    const counts: Record<string, number> = {};
+    for (const l of fixed.labels) counts[l] = (counts[l] ?? 0) + 1;
+    for (const f of faces) expect(counts[f]).toBe(9);
+    expect(Math.min(...fixed.confidence)).toBeLessThan(0);
+  });
 });
 
 function FACES_INDEX(f: FaceLetter): number {

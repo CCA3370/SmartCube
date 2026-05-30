@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { recognizeCapturedFaces, recognizeFace, DISPLAY_COLOR } from './recognition';
+import { recognizeCapturedFaces, recognizeFace } from './recognition';
+import { DISPLAY_COLOR } from '../lib/color';
 import type { CaptureStep, FaceCapture, FaceLetter } from '../lib/cube';
 import type { RGB, Square } from '../lib/color';
 

@@ -1,4 +1,4 @@
-import { DISPLAY_COLOR } from '../app/recognition';
+import { DISPLAY_COLOR } from '../lib/color';
 import { FACE_COLOR_NAME } from '../lib/cube';
 import type { CenterColorReading } from '../lib/color/centerCheck';
 

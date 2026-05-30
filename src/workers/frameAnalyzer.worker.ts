@@ -12,10 +12,10 @@ import {
 
 export type AnalyzerRequest =
   | { type: 'config'; thresholds: Partial<ReadinessThresholds> }
-  | { type: 'frame'; id: number; bitmap: ImageBitmap }
+  | { type: 'frame'; bitmap: ImageBitmap }
   | { type: 'reset' };
 
-export type AnalyzerResponse = { type: 'metrics'; id: number; readiness: Readiness };
+export type AnalyzerResponse = { type: 'metrics'; readiness: Readiness };
 
 let thresholds: ReadinessThresholds = { ...DEFAULT_THRESHOLDS };
 let prevGray: Float32Array | null = null;
@@ -37,7 +37,7 @@ self.addEventListener('message', (ev: MessageEvent<AnalyzerRequest>) => {
     return;
   }
   // frame
-  const { bitmap, id } = msg;
+  const { bitmap } = msg;
   const w = bitmap.width;
   const h = bitmap.height;
   if (!canvas || canvas.width !== w || canvas.height !== h) {
@@ -53,5 +53,5 @@ self.addEventListener('message', (ev: MessageEvent<AnalyzerRequest>) => {
   const { data } = ctx.getImageData(0, 0, w, h);
   const { metrics, gray } = computeMetrics(data as Uint8ClampedArray, w, h, prevGray);
   prevGray = gray;
-  post({ type: 'metrics', id, readiness: classifyReadiness(metrics, thresholds) });
+  post({ type: 'metrics', readiness: classifyReadiness(metrics, thresholds) });
 });

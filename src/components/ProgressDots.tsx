@@ -1,5 +1,5 @@
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
-import { DISPLAY_COLOR } from '../app/recognition';
+import { DISPLAY_COLOR } from '../lib/color';
 
 interface Props {
   capturedFaces: FaceLetter[];

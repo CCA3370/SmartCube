@@ -5,3 +5,4 @@ export type { Square, CellRect } from './sampling';
 export { faceCells, sampleSticker, sampleFace } from './sampling';
 export type { CenterPalette, Classified } from './classify';
 export { classifyRelativeToCenters, structuralCleanup, nearestCenter } from './classify';
+export { DISPLAY_COLOR, hexToRgb, STANDARD_PALETTE } from './palette';

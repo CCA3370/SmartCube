@@ -1,23 +1,22 @@
 import { type CaptureStep, type FaceLetter, FACE_COLOR_NAME } from '../lib/cube';
-import { DISPLAY_COLOR } from '../app/recognition';
+import { DISPLAY_COLOR } from '../lib/color';
 
 interface Props {
   step: CaptureStep;
-  compact?: boolean;
 }
 
 /**
- * A compact cue showing which colors to point at the camera and keep up,
- * rendered as two labeled swatches plus the instruction text.
+ * A cue showing which colors to point at the camera and keep up, rendered as two
+ * labeled swatches plus the instruction text.
  */
-export function HoldOrientationHint({ step, compact = false }: Props) {
+export function HoldOrientationHint({ step }: Props) {
   return (
     <div
       style={{
         display: 'flex',
-        flexDirection: compact ? 'row' : 'column',
+        flexDirection: 'column',
         alignItems: 'center',
-        gap: compact ? 12 : 8,
+        gap: 8,
         textAlign: 'center',
       }}
     >
@@ -25,11 +24,9 @@ export function HoldOrientationHint({ step, compact = false }: Props) {
         <Swatch face={step.toCamera} caption="center faces you" />
         <Swatch face={step.up} caption="center up" />
       </div>
-      {!compact && (
-        <p className="subtitle" style={{ margin: 0, maxWidth: 360 }}>
-          {step.instruction}
-        </p>
-      )}
+      <p className="subtitle" style={{ margin: 0, maxWidth: 360 }}>
+        {step.instruction}
+      </p>
     </div>
   );
 }

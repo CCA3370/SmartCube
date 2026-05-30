@@ -7,7 +7,6 @@ import './CameraView.css';
 interface CapturedFaceOverlay {
   labels: FaceLetter[];
   confidence?: number[];
-  onEdit: (index: number, color: FaceLetter) => void;
 }
 
 interface CameraViewProps {
@@ -147,8 +146,6 @@ export function CameraView({
             <FaceGrid
               labels={capturedFace.labels}
               confidence={capturedFace.confidence}
-              editable
-              onEdit={capturedFace.onEdit}
               fill
             />
           ) : (

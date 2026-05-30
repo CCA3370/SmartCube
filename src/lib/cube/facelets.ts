@@ -25,7 +25,7 @@ export const CENTER_INDEX: Record<FaceLetter, number> = {
 
 /**
  * Concatenate the 6 faces' labels (each in NET row-major order) into the
- * 54-char Kociemba facelet string. Asserts each block's center (index 5) equals
+ * 54-char Kociemba facelet string. Asserts each block's center (index 4) equals
  * its own face letter — a cheap guard against an orientation/assembly bug
  * producing a structurally impossible string.
  */

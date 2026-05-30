@@ -65,7 +65,6 @@ export function ReviewScreen() {
       return;
     }
     setBusy(true);
-    dispatch({ type: 'SOLVE_START' });
     try {
       await solver.init();
       const solution = await solver.solve(facelets);
@@ -79,7 +78,6 @@ export function ReviewScreen() {
           suspectFaces: [...FACE_ORDER],
         },
       });
-      dispatch({ type: 'SOLVE_ERROR', message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }

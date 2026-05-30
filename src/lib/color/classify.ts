@@ -120,9 +120,17 @@ export function structuralCleanup(stickerLabs: LAB[], palette: CenterPalette): C
   }
 
   const labels = assign.map((i) => FACES[i]);
-  const confidence = dist.map((row) => {
-    const sorted = [...row].sort((x, y) => x - y);
-    return sorted[1] - sorted[0];
+  // Confidence = margin of the ASSIGNED label over its nearest competitor:
+  // positive when the assignment is also the nearest center, ~0 when ambiguous,
+  // and negative when structural rebalancing moved the sticker off its nearest
+  // center — so the FaceGrid low-confidence dots flag exactly those risky stickers.
+  const confidence = dist.map((row, s) => {
+    const a = assign[s];
+    let nearestOther = Infinity;
+    for (let f = 0; f < 6; f++) {
+      if (f !== a && row[f] < nearestOther) nearestOther = row[f];
+    }
+    return nearestOther - row[a];
   });
   return { labels, confidence };
 }

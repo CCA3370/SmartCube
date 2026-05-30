@@ -106,7 +106,6 @@ export function ScanScreen() {
               ? {
                   labels: lastCapture.labels,
                   confidence: lastCapture.confidence,
-                  onEdit: (index, color) => dispatch({ type: 'EDIT_STICKER', face: step.face, index, color }),
                 }
               : undefined
           }
@@ -121,7 +120,7 @@ export function ScanScreen() {
         </div>
       ) : (
         <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>
-          Tap a sticker to correct it, or retake this face.
+          Looks good? Continue, or retake this face.
         </p>
       )}
 

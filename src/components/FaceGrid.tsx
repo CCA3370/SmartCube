@@ -1,4 +1,4 @@
-import { DISPLAY_COLOR } from '../app/recognition';
+import { DISPLAY_COLOR } from '../lib/color';
 import type { FaceLetter } from '../lib/cube';
 import './FaceGrid.css';
 

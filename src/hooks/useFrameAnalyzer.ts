@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   classifyReadiness,
   DEFAULT_THRESHOLDS,
@@ -17,15 +17,14 @@ const INITIAL: Readiness = classifyReadiness(
  * Drive a per-frame analysis loop: on each new video frame, draw the centered
  * face region into a small offscreen canvas, hand the bitmap to the analyzer
  * worker, and surface the latest readiness. Uses requestVideoFrameCallback when
- * available (processes each unique frame once), else falls back to rAF.
+ * available (processes each unique frame once), else falls back to rAF. At most
+ * one frame is in flight at a time — frames are dropped while the worker is busy.
  */
 export function useFrameAnalyzer(
   videoRef: React.RefObject<HTMLVideoElement | null>,
   active: boolean,
 ): Readiness {
   const [readiness, setReadiness] = useState<Readiness>(INITIAL);
-  const workerRef = useRef<Worker | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -36,40 +35,47 @@ export function useFrameAnalyzer(
       new URL('../workers/frameAnalyzer.worker.ts', import.meta.url),
       { type: 'module' },
     );
-    workerRef.current = worker;
+    let inFlight = false;
     worker.addEventListener('message', (ev: MessageEvent<AnalyzerResponse>) => {
-      if (ev.data.type === 'metrics') setReadiness(ev.data.readiness);
+      if (ev.data.type === 'metrics') {
+        inFlight = false;
+        setReadiness(ev.data.readiness);
+      }
     });
     worker.postMessage({ type: 'reset' });
 
     const canvas = document.createElement('canvas');
     canvas.width = ANALYZE_SIZE;
     canvas.height = ANALYZE_SIZE;
-    canvasRef.current = canvas;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    let frameId = 0;
     let stopped = false;
     let rafHandle = 0;
     let rvfcHandle = 0;
 
     const processFrame = () => {
-      if (stopped || !ctx || !video.videoWidth) return;
+      // Skip while a frame is still being analyzed: bounds the worker queue to a
+      // single in-flight bitmap and drops frames it can't keep up with.
+      if (stopped || inFlight || !ctx || !video.videoWidth) return;
       const side = Math.min(video.videoWidth, video.videoHeight);
       const sx = (video.videoWidth - side) / 2;
       const sy = (video.videoHeight - side) / 2;
       // Draw the centered square region, downscaled to ANALYZE_SIZE.
       ctx.drawImage(video, sx, sy, side, side, 0, 0, ANALYZE_SIZE, ANALYZE_SIZE);
+      inFlight = true;
       // createImageBitmap yields a transferable bitmap (zero-copy postMessage).
       createImageBitmap(canvas)
         .then((bm) => {
           if (stopped) {
             bm.close();
+            inFlight = false;
             return;
           }
-          worker.postMessage({ type: 'frame', id: frameId++, bitmap: bm }, [bm]);
+          worker.postMessage({ type: 'frame', bitmap: bm }, [bm]);
         })
-        .catch(() => undefined);
+        .catch(() => {
+          inFlight = false;
+        });
     };
 
     const loopRVFC = () => {
@@ -94,7 +100,6 @@ export function useFrameAnalyzer(
       if (rafHandle) cancelAnimationFrame(rafHandle);
       if (rvfcHandle && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(rvfcHandle);
       worker.terminate();
-      workerRef.current = null;
     };
   }, [active, videoRef]);
 

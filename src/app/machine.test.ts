@@ -99,7 +99,6 @@ describe('app machine', () => {
     s = reducer(s, { type: 'SOLVE_OK', solution: { moves: ['R', "U'"], raw: "R U'" } });
     expect(s.screen).toBe('solve');
     expect(s.solution!.moves).toEqual(['R', "U'"]);
-    expect(s.stepIndex).toBe(0);
   });
 
   it('RESTART preserves solverReady', () => {
