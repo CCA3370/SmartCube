@@ -2,10 +2,12 @@ interface Props {
   moves: string[];
   currentIndex: number;
   onJump: (index: number) => void;
+  maskFromIndex?: number;
+  revealCurrent?: boolean;
 }
 
 /** Renders the solution moves with the current one highlighted; click to jump. */
-export function MoveList({ moves, currentIndex, onJump }: Props) {
+export function MoveList({ moves, currentIndex, onJump, maskFromIndex, revealCurrent = true }: Props) {
   return (
     <div
       style={{
@@ -20,6 +22,8 @@ export function MoveList({ moves, currentIndex, onJump }: Props) {
       {moves.map((m, i) => {
         const done = i < currentIndex;
         const current = i === currentIndex;
+        const masked = maskFromIndex !== undefined && i >= maskFromIndex && !(revealCurrent && current);
+        const label = masked ? '???' : m;
         return (
           <button
             key={i}
@@ -36,7 +40,7 @@ export function MoveList({ moves, currentIndex, onJump }: Props) {
             }}
             title={`Move ${i + 1}`}
           >
-            {m}
+            {label}
           </button>
         );
       })}

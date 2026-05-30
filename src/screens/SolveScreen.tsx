@@ -3,7 +3,10 @@ import { useApp } from '../app/AppContext';
 import { TwistyView } from '../components/TwistyView';
 import { MoveList } from '../components/MoveList';
 import { StepControls } from '../components/StepControls';
+import { LearningGuide } from '../components/LearningGuide';
 import type { Stepper, StepperState } from '../lib/twisty';
+
+type SolveMode = 'follow' | 'learn';
 
 export function SolveScreen() {
   const { state, dispatch } = useApp();
@@ -11,10 +14,14 @@ export function SolveScreen() {
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [mode, setMode] = useState<SolveMode>('follow');
+  const [answerRevealed, setAnswerRevealed] = useState(false);
+  const [masteredFamilies, setMasteredFamilies] = useState<Set<string>>(() => new Set());
 
   const moves = state.solution?.moves ?? [];
   const total = moves.length;
   const raw = state.solution?.raw ?? '';
+  const currentMove = index < total ? moves[index] ?? null : null;
 
   const syncStepperState = useCallback((next: StepperState) => {
     setIndex(next.index);
@@ -33,6 +40,12 @@ export function SolveScreen() {
       unsubscribeRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (mode === 'learn') {
+      setAnswerRevealed(false);
+    }
+  }, [index, mode]);
 
   const setStep = useCallback(
     (next: number) => {
@@ -83,6 +96,14 @@ export function SolveScreen() {
     setStep(i);
     setPlaying(false);
   };
+  const markMastered = (familyKey: string) => {
+    setMasteredFamilies((prev) => {
+      if (prev.has(familyKey)) return prev;
+      const next = new Set(prev);
+      next.add(familyKey);
+      return next;
+    });
+  };
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
@@ -98,9 +119,44 @@ export function SolveScreen() {
         </button>
       </div>
 
+      <div className="row" style={{ justifyContent: 'center', gap: 8 }}>
+        <button
+          className={mode === 'follow' ? 'btn btn-primary' : 'btn'}
+          onClick={() => setMode('follow')}
+          aria-pressed={mode === 'follow'}
+        >
+          Follow
+        </button>
+        <button
+          className={mode === 'learn' ? 'btn btn-primary' : 'btn'}
+          onClick={() => setMode('learn')}
+          aria-pressed={mode === 'learn'}
+        >
+          Learn
+        </button>
+      </div>
+
       <TwistyView solutionRaw={raw} onReady={onReady} />
 
-      <MoveList moves={moves} currentIndex={index} onJump={jumpTo} />
+      {mode === 'learn' && (
+        <LearningGuide
+          move={currentMove}
+          index={index}
+          total={total}
+          revealed={answerRevealed}
+          masteredFamilies={masteredFamilies}
+          onReveal={() => setAnswerRevealed(true)}
+          onMastered={markMastered}
+        />
+      )}
+
+      <MoveList
+        moves={moves}
+        currentIndex={index}
+        onJump={jumpTo}
+        maskFromIndex={mode === 'learn' ? index : undefined}
+        revealCurrent={mode !== 'learn' || answerRevealed}
+      />
 
       <StepControls
         index={index}

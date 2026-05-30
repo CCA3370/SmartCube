@@ -25,7 +25,13 @@ export function StepControls({
         Step {Math.min(index + 1, total)} / {total}
       </div>
       <div className="row" style={{ gap: 8 }}>
-        <button className="btn btn-ghost" onClick={onToStart} title="Jump to start" disabled={index <= 0}>
+        <button
+          className="btn btn-ghost"
+          onClick={onToStart}
+          title="Jump to start"
+          aria-label="Jump to start"
+          disabled={index <= 0}
+        >
           ⏮
         </button>
         <button className="btn" onClick={onPrev} disabled={index <= 0} title="Previous move">
@@ -37,7 +43,13 @@ export function StepControls({
         <button className="btn" onClick={onNext} disabled={index >= total} title="Next move">
           Next ▶
         </button>
-        <button className="btn btn-ghost" onClick={onToEnd} title="Jump to end" disabled={index >= total}>
+        <button
+          className="btn btn-ghost"
+          onClick={onToEnd}
+          title="Jump to end"
+          aria-label="Jump to end"
+          disabled={index >= total}
+        >
           ⏭
         </button>
       </div>
