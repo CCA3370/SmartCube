@@ -25,7 +25,9 @@ export function createPlayer(): TwistyPlayer {
   });
   player.style.width = '100%';
   player.style.height = '100%';
-  player.style.display = 'block';
+  // cubing's closed shadow layout relies on the host being a grid; block makes
+  // the internal wrapper/canvases collapse to 0 height.
+  player.style.display = 'grid';
   return player;
 }
 

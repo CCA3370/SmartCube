@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { Alg } from 'cubing/alg';
-import { countMoves } from './player';
+import { countMoves, createPlayer } from './player';
 
 describe('twisty player helpers', () => {
   it('counts moves in a solution alg', () => {
     expect(countMoves(new Alg("R U R' U'"))).toBe(4);
     expect(countMoves(new Alg(''))).toBe(0);
     expect(countMoves(new Alg('R2 U2 F2'))).toBe(3);
+  });
+
+  it('keeps the player host as a grid so the internal renderer can fill its height', () => {
+    const player = createPlayer();
+
+    expect(player.style.display).toBe('grid');
   });
 
   it('invert trick: inverse of solution applied to solved == scramble origin', () => {
