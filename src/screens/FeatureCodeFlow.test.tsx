@@ -17,13 +17,29 @@ interface MockAppContext {
 }
 
 const app = vi.hoisted(() => ({ value: null as unknown as MockAppContext }));
+const planner = vi.hoisted(() => ({
+  plan: {
+    method: 'lbl' as const,
+    sourceFacelets: 'source',
+    stages: [],
+    physicalMoves: ['R'],
+    createdAt: 1,
+  },
+  buildBeginnerPlan: vi.fn(),
+}));
 
 vi.mock('../app/AppContext', () => ({
   useApp: () => app.value,
 }));
 
+vi.mock('../lib/learning/beginner', () => ({
+  buildBeginnerPlan: planner.buildBeginnerPlan,
+}));
+
 describe('feature code flow', () => {
   beforeEach(() => {
+    planner.buildBeginnerPlan.mockReset();
+    planner.buildBeginnerPlan.mockReturnValue(planner.plan);
     app.value = {
       state: { ...initialState, solverReady: true },
       dispatch: vi.fn(),
@@ -51,6 +67,23 @@ describe('feature code flow', () => {
     expect(app.value.dispatch).toHaveBeenCalledWith({
       type: 'SOLVE_OK',
       solution: { moves: ['R'], raw: 'R' },
+      sourceFacelets: SOLVED,
+    });
+  });
+
+  it('starts beginner learning from a pasted feature code', async () => {
+    render(<WelcomeScreen />);
+
+    fireEvent.change(screen.getByLabelText(/cube feature code/i), {
+      target: { value: encodeFeatureCode(SOLVED) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /learn from code/i }));
+
+    await waitFor(() => expect(app.value.solver.solve).toHaveBeenCalledWith(SOLVED));
+    expect(planner.buildBeginnerPlan).toHaveBeenCalledWith(SOLVED, ['R']);
+    expect(app.value.dispatch).toHaveBeenCalledWith({
+      type: 'LEARN_OK',
+      plan: planner.plan,
     });
   });
 
@@ -68,6 +101,7 @@ describe('feature code flow', () => {
 
     expect(screen.getByRole('button', { name: /start camera & scan/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /solve from code/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /learn from code/i })).toBeDisabled();
 
     app.value.state = {
       ...app.value.state,
@@ -78,6 +112,7 @@ describe('feature code flow', () => {
 
     expect(screen.getByRole('button', { name: /start camera & scan/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /solve from code/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /learn from code/i })).toBeEnabled();
   });
 
   it('fades away the welcome solver progress after the solver becomes ready', () => {
@@ -123,5 +158,29 @@ describe('feature code flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy feature code/i }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(code));
+  });
+
+  it('offers separate beginner learning and optimal solve actions on review', async () => {
+    app.value.state = {
+      ...initialState,
+      screen: 'review',
+      labels: parseFaceletString(SOLVED).faces,
+    };
+
+    render(<ReviewScreen />);
+
+    fireEvent.click(screen.getByRole('button', { name: /learn beginner method/i }));
+
+    await waitFor(() => expect(app.value.solver.solve).toHaveBeenCalledWith(SOLVED));
+    expect(planner.buildBeginnerPlan).toHaveBeenCalledWith(SOLVED, ['R']);
+    expect(app.value.dispatch).toHaveBeenCalledWith({ type: 'LEARN_OK', plan: planner.plan });
+
+    fireEvent.click(screen.getByRole('button', { name: /optimal solve/i }));
+
+    await waitFor(() => expect(app.value.dispatch).toHaveBeenCalledWith({
+      type: 'SOLVE_OK',
+      solution: { moves: ['R'], raw: 'R' },
+      sourceFacelets: SOLVED,
+    }));
   });
 });

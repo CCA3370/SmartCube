@@ -3,6 +3,7 @@ import { WelcomeScreen } from './screens/WelcomeScreen';
 import { ScanScreen } from './screens/ScanScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { SolveScreen } from './screens/SolveScreen';
+import { LearnScreen } from './screens/LearnScreen';
 import { DoneScreen } from './screens/DoneScreen';
 
 function Router() {
@@ -16,6 +17,8 @@ function Router() {
       return <ReviewScreen />;
     case 'solve':
       return <SolveScreen />;
+    case 'learn':
+      return <LearnScreen />;
     case 'done':
       return <DoneScreen />;
   }

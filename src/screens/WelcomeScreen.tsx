@@ -2,11 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../app/AppContext';
 import { SolverProgress } from '../components/SolverProgress';
 import { decodeFeatureCode, describeError, validate } from '../lib/cube';
+import { buildBeginnerPlan } from '../lib/learning/beginner';
 
 export function WelcomeScreen() {
   const { dispatch, state, solver, retrySolverInit } = useApp();
   const [featureCode, setFeatureCode] = useState('');
-  const [featureBusy, setFeatureBusy] = useState(false);
+  const [featureBusy, setFeatureBusy] = useState<'learn' | 'solve' | null>(null);
   const [featureError, setFeatureError] = useState<string | null>(null);
   const [showSolverStatus, setShowSolverStatus] = useState(true);
 
@@ -23,34 +24,55 @@ export function WelcomeScreen() {
     return () => window.clearTimeout(timeout);
   }, [fadeSolverStatus]);
 
-  const handleFeatureSolve = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const decodeValidFeatureCode = (): string | null => {
     const rawCode = featureCode.trim();
-    if (!rawCode) return;
+    if (!rawCode) return null;
 
     setFeatureError(null);
-    let facelets: string;
     try {
-      facelets = decodeFeatureCode(rawCode);
+      const facelets = decodeFeatureCode(rawCode);
       const validation = validate(facelets);
       if (!validation.ok) {
         setFeatureError(validation.errors.map(describeError).join(' '));
-        return;
+        return null;
       }
+      return facelets;
     } catch (e) {
       setFeatureError(e instanceof Error ? e.message : String(e));
-      return;
+      return null;
     }
+  };
 
-    setFeatureBusy(true);
+  const handleFeatureSolve = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const facelets = decodeValidFeatureCode();
+    if (!facelets) return;
+
+    setFeatureBusy('solve');
     try {
       await solver.init();
       const solution = await solver.solve(facelets);
-      dispatch({ type: 'SOLVE_OK', solution });
+      dispatch({ type: 'SOLVE_OK', solution, sourceFacelets: facelets });
     } catch (e) {
       setFeatureError(e instanceof Error ? e.message : String(e));
     } finally {
-      setFeatureBusy(false);
+      setFeatureBusy(null);
+    }
+  };
+
+  const handleFeatureLearn = async () => {
+    const facelets = decodeValidFeatureCode();
+    if (!facelets) return;
+
+    setFeatureBusy('learn');
+    try {
+      await solver.init();
+      const solution = await solver.solve(facelets);
+      dispatch({ type: 'LEARN_OK', plan: buildBeginnerPlan(facelets, solution.moves) });
+    } catch (e) {
+      setFeatureError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFeatureBusy(null);
     }
   };
 
@@ -111,10 +133,19 @@ export function WelcomeScreen() {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={!solverReady || featureBusy || !featureCode.trim()}
+            disabled={!solverReady || featureBusy !== null || !featureCode.trim()}
             style={{ flex: '1 0 150px' }}
           >
-            {featureBusy ? 'Solving…' : 'Solve from code'}
+            {featureBusy === 'solve' ? 'Solving…' : 'Solve from code'}
+          </button>
+          <button
+            className="btn"
+            type="button"
+            disabled={!solverReady || featureBusy !== null || !featureCode.trim()}
+            style={{ flex: '1 0 150px' }}
+            onClick={handleFeatureLearn}
+          >
+            {featureBusy === 'learn' ? 'Preparing…' : 'Learn from code'}
           </button>
         </div>
         {featureError && (

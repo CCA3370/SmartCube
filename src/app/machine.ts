@@ -1,9 +1,10 @@
 import type { FaceLetter, FaceCapture, FaceLabels, ValidationResult } from '../lib/cube';
 import type { Solution, SolverProgress } from '../lib/solver/types';
+import type { LearningPlan } from '../lib/learning/types';
 import { CAPTURE_SEQUENCE, FACE_ORDER } from '../lib/cube';
 import { recognizeCapturedFaces, recognizeCube } from './recognition';
 
-export type Screen = 'welcome' | 'scan' | 'review' | 'solve' | 'done';
+export type Screen = 'welcome' | 'scan' | 'review' | 'solve' | 'learn' | 'done';
 
 export interface AppState {
   screen: Screen;
@@ -15,6 +16,9 @@ export interface AppState {
   labels: Partial<Record<FaceLetter, FaceLabels>>;
   validation: ValidationResult | null;
   solution: Solution | null;
+  sourceFacelets: string | null;
+  learningPlan: LearningPlan | null;
+  learningError: string | null;
   solverReady: boolean;
   /** Latest table-build progress (for the progress bar), or null before any. */
   solverProgress: SolverProgress | null;
@@ -34,7 +38,10 @@ export type AppEvent =
   | { type: 'SOLVER_PROGRESS'; progress: SolverProgress }
   | { type: 'SOLVER_ERROR'; message: string }
   | { type: 'SOLVER_RETRY' }
-  | { type: 'SOLVE_OK'; solution: Solution }
+  | { type: 'SOLVE_OK'; solution: Solution; sourceFacelets?: string }
+  | { type: 'LEARN_OK'; plan: LearningPlan }
+  | { type: 'LEARN_ERROR'; message: string }
+  | { type: 'LEARN_RESTART' }
   | { type: 'SET_VALIDATION'; result: ValidationResult }
   | { type: 'FINISH' }
   | { type: 'RESTART' };
@@ -46,6 +53,9 @@ export const initialState: AppState = {
   labels: {},
   validation: null,
   solution: null,
+  sourceFacelets: null,
+  learningPlan: null,
+  learningError: null,
   solverReady: false,
   solverProgress: null,
   solverError: null,
@@ -140,7 +150,27 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       return { ...state, validation: event.result };
 
     case 'SOLVE_OK':
-      return { ...state, solution: event.solution, screen: 'solve' };
+      return {
+        ...state,
+        solution: event.solution,
+        sourceFacelets: event.sourceFacelets ?? state.sourceFacelets,
+        screen: 'solve',
+      };
+
+    case 'LEARN_OK':
+      return {
+        ...state,
+        learningPlan: event.plan,
+        learningError: null,
+        sourceFacelets: event.plan.sourceFacelets,
+        screen: 'learn',
+      };
+
+    case 'LEARN_ERROR':
+      return { ...state, learningPlan: null, learningError: event.message };
+
+    case 'LEARN_RESTART':
+      return { ...state, screen: 'learn' };
 
     case 'FINISH':
       return { ...state, screen: 'done' };

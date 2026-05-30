@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { FaceGrid } from '../components/FaceGrid';
 import { SolverProgress } from '../components/SolverProgress';
+import { buildBeginnerPlan } from '../lib/learning/beginner';
 import {
   FACE_ORDER,
   FACE_COLOR_NAME,
@@ -17,6 +18,7 @@ import {
 export function ReviewScreen() {
   const { state, dispatch, solver, retrySolverInit } = useApp();
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<'learn' | 'solve' | null>(null);
   const [solveError, setSolveError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
@@ -49,7 +51,7 @@ export function ReviewScreen() {
     }
   };
 
-  const handleSolve = async () => {
+  const solveCurrentFacelets = async (mode: 'learn' | 'solve') => {
     if (!facelets) return;
     const v = validate(facelets);
     if (!v.ok) {
@@ -57,26 +59,39 @@ export function ReviewScreen() {
       return;
     }
     setBusy(true);
+    setBusyAction(mode);
     setSolveError(null);
     try {
       await solver.init();
       const solution = await solver.solve(facelets);
-      dispatch({ type: 'SOLVE_OK', solution });
+      if (mode === 'learn') {
+        dispatch({ type: 'LEARN_OK', plan: buildBeginnerPlan(facelets, solution.moves) });
+      } else {
+        dispatch({ type: 'SOLVE_OK', solution, sourceFacelets: facelets });
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setSolveError(message);
-      dispatch({
-        type: 'SET_VALIDATION',
-        result: {
-          ok: false,
-          errors: [{ kind: 'solver-rejected', message }],
-          suspectFaces: [...FACE_ORDER],
-        },
-      });
+      if (mode === 'learn') {
+        dispatch({ type: 'LEARN_ERROR', message });
+      } else {
+        dispatch({
+          type: 'SET_VALIDATION',
+          result: {
+            ok: false,
+            errors: [{ kind: 'solver-rejected', message }],
+            suspectFaces: [...FACE_ORDER],
+          },
+        });
+      }
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   };
+
+  const handleSolve = () => void solveCurrentFacelets('solve');
+  const handleLearn = () => void solveCurrentFacelets('learn');
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%', overflow: 'auto' }}>
@@ -214,13 +229,28 @@ export function ReviewScreen() {
         </div>
       )}
 
+      {state.learningError && !busy && (
+        <div className="card" style={{ borderColor: 'var(--bad)', padding: 14 }}>
+          <strong style={{ color: 'var(--bad)' }}>Beginner learning plan failed</strong>
+          <p className="subtitle" style={{ margin: '6px 0 0' }}>{state.learningError}</p>
+          <button className="btn" style={{ marginTop: 10 }} onClick={handleSolve}>
+            Use optimal solve instead
+          </button>
+        </div>
+      )}
+
       <div className="row spread" style={{ position: 'sticky', bottom: 0, paddingTop: 8 }}>
         <button className="btn btn-ghost" onClick={() => dispatch({ type: 'RESTART' })}>
           Start over
         </button>
-        <button className="btn btn-primary" onClick={handleSolve} disabled={busy || !facelets}>
-          {busy ? 'Solving…' : 'Solve it →'}
-        </button>
+        <div className="row" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={handleLearn} disabled={busy || !facelets}>
+            {busy && busyAction === 'learn' ? 'Preparing…' : 'Learn beginner method'}
+          </button>
+          <button className="btn btn-primary" onClick={handleSolve} disabled={busy || !facelets}>
+            {busy && busyAction === 'solve' ? 'Solving…' : 'Optimal solve →'}
+          </button>
+        </div>
       </div>
     </div>
   );

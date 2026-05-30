@@ -130,9 +130,35 @@ describe('app machine', () => {
   it('SOLVE_OK transitions to solve with the solution', () => {
     let s = reducer(initialState, { type: 'START' });
     s = captureAll(s);
-    s = reducer(s, { type: 'SOLVE_OK', solution: { moves: ['R', "U'"], raw: "R U'" } });
+    s = reducer(s, { type: 'SOLVE_OK', solution: { moves: ['R', "U'"], raw: "R U'" }, sourceFacelets: 'source' });
     expect(s.screen).toBe('solve');
     expect(s.solution!.moves).toEqual(['R', "U'"]);
+    expect(s.sourceFacelets).toBe('source');
+  });
+
+  it('LEARN_OK transitions to learn with the beginner learning plan', () => {
+    const plan = {
+      method: 'lbl' as const,
+      sourceFacelets: 'source',
+      stages: [],
+      physicalMoves: [],
+      createdAt: 1,
+    };
+
+    const s = reducer(initialState, { type: 'LEARN_OK', plan });
+
+    expect(s.screen).toBe('learn');
+    expect(s.learningPlan).toBe(plan);
+    expect(s.sourceFacelets).toBe('source');
+    expect(s.learningError).toBeNull();
+  });
+
+  it('LEARN_ERROR stays on review and exposes a fallback message', () => {
+    const s = reducer({ ...initialState, screen: 'review' }, { type: 'LEARN_ERROR', message: 'No beginner path' });
+
+    expect(s.screen).toBe('review');
+    expect(s.learningPlan).toBeNull();
+    expect(s.learningError).toBe('No beginner path');
   });
 
   it('RESTART preserves solverReady and solverProgress', () => {
