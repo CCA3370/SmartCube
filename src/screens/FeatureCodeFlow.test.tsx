@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialState, type AppEvent, type AppState } from '../app/machine';
 import { SOLVED, parseFaceletString } from '../lib/cube';
 import { encodeFeatureCode } from '../lib/cube/featureCode';
@@ -25,7 +25,7 @@ vi.mock('../app/AppContext', () => ({
 describe('feature code flow', () => {
   beforeEach(() => {
     app.value = {
-      state: initialState,
+      state: { ...initialState, solverReady: true },
       dispatch: vi.fn(),
       solver: {
         init: vi.fn().mockResolvedValue(undefined),
@@ -33,6 +33,10 @@ describe('feature code flow', () => {
       },
       retrySolverInit: vi.fn(),
     };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('solves a pasted feature code directly from the welcome screen', async () => {
@@ -48,6 +52,59 @@ describe('feature code flow', () => {
       type: 'SOLVE_OK',
       solution: { moves: ['R'], raw: 'R' },
     });
+  });
+
+  it('disables both welcome start actions until the solver is ready', () => {
+    app.value.state = {
+      ...initialState,
+      solverReady: false,
+      solverProgress: { done: 1, total: 10, label: 'Starting', cached: false },
+    };
+
+    const { rerender } = render(<WelcomeScreen />);
+    fireEvent.change(screen.getByLabelText(/cube feature code/i), {
+      target: { value: encodeFeatureCode(SOLVED) },
+    });
+
+    expect(screen.getByRole('button', { name: /start camera & scan/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /solve from code/i })).toBeDisabled();
+
+    app.value.state = {
+      ...app.value.state,
+      solverReady: true,
+      solverProgress: { done: 10, total: 10, label: 'Ready', cached: true },
+    };
+    rerender(<WelcomeScreen />);
+
+    expect(screen.getByRole('button', { name: /start camera & scan/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /solve from code/i })).toBeEnabled();
+  });
+
+  it('fades away the welcome solver progress after the solver becomes ready', () => {
+    vi.useFakeTimers();
+    app.value.state = {
+      ...initialState,
+      solverReady: false,
+      solverProgress: { done: 1, total: 10, label: 'Starting', cached: false },
+    };
+
+    const { rerender } = render(<WelcomeScreen />);
+    expect(screen.getByText('Starting')).toBeInTheDocument();
+
+    app.value.state = {
+      ...app.value.state,
+      solverReady: true,
+      solverProgress: { done: 10, total: 10, label: 'Ready', cached: true },
+    };
+    rerender(<WelcomeScreen />);
+
+    expect(screen.getByText('Ready')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   });
 
   it('shows and copies the current valid review feature code', async () => {

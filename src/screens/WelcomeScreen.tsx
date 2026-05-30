@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../app/AppContext';
 import { SolverProgress } from '../components/SolverProgress';
 import { decodeFeatureCode, describeError, validate } from '../lib/cube';
@@ -8,6 +8,20 @@ export function WelcomeScreen() {
   const [featureCode, setFeatureCode] = useState('');
   const [featureBusy, setFeatureBusy] = useState(false);
   const [featureError, setFeatureError] = useState<string | null>(null);
+  const [showSolverStatus, setShowSolverStatus] = useState(true);
+
+  const solverReady = state.solverReady && !state.solverError;
+  const fadeSolverStatus = solverReady;
+
+  useEffect(() => {
+    if (!fadeSolverStatus) {
+      setShowSolverStatus(true);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setShowSolverStatus(false), 450);
+    return () => window.clearTimeout(timeout);
+  }, [fadeSolverStatus]);
 
   const handleFeatureSolve = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -60,7 +74,11 @@ export function WelcomeScreen() {
         </ol>
       </div>
 
-      <button className="btn btn-primary" onClick={() => dispatch({ type: 'START' })}>
+      <button
+        className="btn btn-primary"
+        onClick={() => dispatch({ type: 'START' })}
+        disabled={!solverReady}
+      >
         Start camera & scan
       </button>
 
@@ -93,7 +111,7 @@ export function WelcomeScreen() {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={featureBusy || !featureCode.trim()}
+            disabled={!solverReady || featureBusy || !featureCode.trim()}
             style={{ flex: '1 0 150px' }}
           >
             {featureBusy ? 'Solving…' : 'Solve from code'}
@@ -106,19 +124,27 @@ export function WelcomeScreen() {
         )}
       </form>
 
-      {state.solverProgress || state.solverError ? (
-        <div style={{ width: '100%', maxWidth: 440 }}>
+      {(state.solverProgress || state.solverError) && showSolverStatus ? (
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 440,
+            opacity: fadeSolverStatus ? 0 : 1,
+            transform: fadeSolverStatus ? 'translateY(-4px)' : 'translateY(0)',
+            transition: 'opacity 0.45s ease, transform 0.45s ease',
+          }}
+        >
           <SolverProgress
             progress={state.solverProgress}
             error={state.solverError}
             onRetry={retrySolverInit}
           />
         </div>
-      ) : (
+      ) : !state.solverReady ? (
         <p className="subtitle" style={{ fontSize: '0.8rem' }}>
-          {state.solverReady ? 'Solver ready.' : 'Preparing the solver…'} Camera access is required.
+          Preparing the solver… Camera access is required.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
