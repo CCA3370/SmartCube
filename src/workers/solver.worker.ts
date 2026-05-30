@@ -39,19 +39,16 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// Catch any uncaught errors in the worker and report them.
+// Catch any uncaught errors in the worker and report them instead of letting
+// the worker die silently (which would leave init() waiting on the stall timer).
 self.addEventListener('error', (ev: ErrorEvent) => {
   post({ type: 'error', id: -1, message: `Worker error: ${ev.message}` });
 });
 
-// Post a heartbeat immediately on load so the client knows the worker is alive.
-// This helps diagnose "worker never loaded" vs "worker loaded but init failed".
-try {
-  post({ type: 'progress', done: 0, total: TOTAL_WEIGHT, label: 'Worker loaded', cached: false });
-} catch (e) {
-  // If we can't even post, the worker is fundamentally broken.
-  console.error('Worker failed to post initial message:', e);
-}
+// Heartbeat on load: confirms the worker module imported successfully (a failed
+// import — e.g. the cubejs `this.Cube` crash — never reaches this line) and
+// resets the client's init stall watchdog the instant the worker is alive.
+post({ type: 'progress', done: 0, total: TOTAL_WEIGHT, label: 'Starting', cached: false });
 
 async function buildTables(): Promise<void> {
   // 1. Try the persistent cache first — a hit makes the solver effectively
@@ -101,8 +98,6 @@ self.addEventListener('message', (ev: MessageEvent<SolverRequest>) => {
   const msg = ev.data;
   switch (msg.type) {
     case 'init': {
-      // Post an immediate progress message so the client knows the worker loaded.
-      postProgress({ done: 0, total: TOTAL_WEIGHT, label: 'Starting', cached: false });
       ensureInit().then(
         () => post({ type: 'ready' }),
         (e) => post({ type: 'error', id: -1, message: errMsg(e) }),
