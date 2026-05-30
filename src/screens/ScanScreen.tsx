@@ -8,6 +8,7 @@ import { ReadinessIndicator } from '../components/ReadinessIndicator';
 import { ProgressDots } from '../components/ProgressDots';
 import { HoldOrientationHint } from '../components/HoldOrientationHint';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
+import { DISPLAY_COLOR } from '../lib/color';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
 import { recognizeFace } from '../app/recognition';
 
@@ -46,7 +47,8 @@ export function ScanScreen() {
     dispatch({ type: 'RESCAN_FACE', face: step.face });
   }, [dispatch, step.face]);
 
-  // Re-arm on each uncaptured scan step; a captured face waits for user review.
+  // Re-arm on each uncaptured scan step. Captures advance immediately, so the
+  // next render normally lands on a fresh face.
   const armed = camera.status === 'live' && !lastCapture;
   const autoProgress = useAutoCapture(readiness, armed, doCapture, state.scanIndex);
   const canCapture = camera.status === 'live';
@@ -85,14 +87,9 @@ export function ScanScreen() {
           readiness={readiness}
           autoProgress={autoProgress}
           overlayFraction={OVERLAY_FRACTION}
-          capturedFace={
-            lastCapture
-              ? {
-                  labels: lastCapture.labels,
-                  confidence: lastCapture.confidence,
-                }
-              : undefined
-          }
+          centerHintColor={DISPLAY_COLOR[step.toCamera]}
+          centerHintKey={state.scanIndex}
+          capturedFace={undefined}
         />
       )}
 
@@ -103,7 +100,7 @@ export function ScanScreen() {
         </div>
       ) : (
         <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>
-          Looks good? Continue, or retake this face.
+          This face is already captured. Continue, or retake it.
         </p>
       )}
 

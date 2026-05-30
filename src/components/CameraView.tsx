@@ -16,6 +16,10 @@ interface CameraViewProps {
   autoProgress: number;
   overlayFraction?: number;
   capturedFace?: CapturedFaceOverlay;
+  /** Color to breathe in the center cell when a new step begins (hex). */
+  centerHintColor?: string;
+  /** Changes per capture step to re-trigger the center-cell color cue. */
+  centerHintKey?: unknown;
 }
 
 interface Size {
@@ -64,9 +68,12 @@ export function CameraView({
   autoProgress,
   overlayFraction = 0.7,
   capturedFace,
+  centerHintColor,
+  centerHintKey,
 }: CameraViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [overlayRect, setOverlayRect] = useState<OverlayRect | null>(null);
+  const [centerHintVisible, setCenterHintVisible] = useState(false);
   const pct = overlayFraction * 100;
   const ringColor = readiness.ready ? 'var(--accent)' : 'rgba(255,255,255,0.6)';
   const reviewing = Boolean(capturedFace);
@@ -109,6 +116,17 @@ export function CameraView({
     };
   }, [updateOverlayRect, videoRef]);
 
+  useEffect(() => {
+    if (!centerHintColor || reviewing) {
+      setCenterHintVisible(false);
+      return undefined;
+    }
+
+    setCenterHintVisible(true);
+    const timer = window.setTimeout(() => setCenterHintVisible(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [centerHintColor, centerHintKey, reviewing]);
+
   const alignStyle: CSSProperties = {
     ...(overlayRect
       ? {
@@ -150,6 +168,14 @@ export function CameraView({
             />
           ) : (
             <>
+              {centerHintVisible && centerHintColor && (
+                <span
+                  aria-hidden="true"
+                  className="center-color-hint"
+                  data-testid="center-color-hint"
+                  style={{ backgroundColor: centerHintColor, color: centerHintColor }}
+                />
+              )}
               <div className="grid-lines">
                 {Array.from({ length: 2 }).map((_, i) => (
                   <span key={`v${i}`} className="vline" style={{ left: `${((i + 1) / 3) * 100}%` }} />

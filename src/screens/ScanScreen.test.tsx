@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialState, type AppEvent, type AppState } from '../app/machine';
 import type { UseCameraResult } from '../hooks/useCamera';
 import type { Readiness } from '../lib/vision/readiness';
+import { DISPLAY_COLOR } from '../lib/color';
+import { CAPTURE_SEQUENCE } from '../lib/cube';
 import { ScanScreen } from './ScanScreen';
 
 interface MockAppContext {
@@ -22,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     ready: true,
   } satisfies Readiness,
   useAutoCapture: vi.fn<() => number>(),
+  cameraView: vi.fn(),
 }));
 
 vi.mock('../app/AppContext', () => ({
@@ -59,7 +62,10 @@ vi.mock('../hooks/useAutoCapture', () => ({
 }));
 
 vi.mock('../components/CameraView', () => ({
-  CameraView: () => <div>Camera preview</div>,
+  CameraView: (props: unknown) => {
+    mocks.cameraView(props);
+    return <div>Camera preview</div>;
+  },
 }));
 
 describe('ScanScreen', () => {
@@ -70,6 +76,7 @@ describe('ScanScreen', () => {
     };
     mocks.useAutoCapture.mockReset();
     mocks.useAutoCapture.mockReturnValue(0);
+    mocks.cameraView.mockReset();
   });
 
   it('does not gate capture on center color matching the standard palette', () => {
@@ -82,6 +89,42 @@ describe('ScanScreen', () => {
       true,
       expect.any(Function),
       0,
+    );
+  });
+
+  it('passes the target face color as a transient center overlay hint', () => {
+    render(<ScanScreen />);
+
+    expect(mocks.cameraView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        centerHintColor: DISPLAY_COLOR[CAPTURE_SEQUENCE[0].toCamera],
+        centerHintKey: 0,
+      }),
+    );
+  });
+
+  it('does not show the captured face result while scanning', () => {
+    const step = CAPTURE_SEQUENCE[0];
+    mocks.app = {
+      state: {
+        ...initialState,
+        screen: 'scan',
+        labels: {
+          [step.face]: {
+            face: step.face,
+            labels: Array(9).fill(step.face),
+          },
+        },
+      },
+      dispatch: vi.fn(),
+    };
+
+    render(<ScanScreen />);
+
+    expect(mocks.cameraView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capturedFace: undefined,
+      }),
     );
   });
 });

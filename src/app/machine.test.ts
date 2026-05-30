@@ -18,7 +18,6 @@ function captureAll(state: AppState): AppState {
   let s = state;
   for (const step of CAPTURE_SEQUENCE) {
     s = reducer(s, { type: 'CAPTURE_FACE', face: step.face, capture: cap(step.face) });
-    s = reducer(s, { type: 'NEXT_FACE' });
   }
   return s;
 }
@@ -30,7 +29,7 @@ describe('app machine', () => {
     expect(s.scanIndex).toBe(0);
   });
 
-  it('capturing a face stays on the same scan step until NEXT_FACE', () => {
+  it('capturing a face advances to the next uncaptured scan step', () => {
     let s = reducer(initialState, { type: 'START' });
     s = reducer(s, {
       type: 'CAPTURE_FACE',
@@ -39,9 +38,6 @@ describe('app machine', () => {
     });
 
     expect(s.screen).toBe('scan');
-    expect(s.scanIndex).toBe(0);
-
-    s = reducer(s, { type: 'NEXT_FACE' });
     expect(s.scanIndex).toBe(1);
   });
 
@@ -56,7 +52,7 @@ describe('app machine', () => {
     expect(s.labels.F?.labels).toEqual(Array(9).fill('F'));
   });
 
-  it('NEXT_FACE goes to review only after all six faces are captured', () => {
+  it('capturing the final face goes to review', () => {
     let s = reducer(initialState, { type: 'START' });
     s = captureAll(s);
     expect(s.screen).toBe('review');

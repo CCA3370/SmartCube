@@ -91,7 +91,14 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       // captured face against the progressive palette, since a newly added live
       // center can shift the labels of faces captured earlier.
       const labels = recognizeCapturedFaces(captures);
-      return { ...state, captures, labels, validation: null };
+      const nextState = { ...state, captures, labels, validation: null };
+      const allDone = CAPTURE_SEQUENCE.every((s) => labels[s.face]);
+      if (allDone) return toReview(nextState);
+      for (let k = 1; k <= CAPTURE_SEQUENCE.length; k++) {
+        const idx = (state.scanIndex + k) % CAPTURE_SEQUENCE.length;
+        if (!labels[CAPTURE_SEQUENCE[idx].face]) return { ...nextState, scanIndex: idx };
+      }
+      return nextState;
     }
 
     case 'NEXT_FACE': {

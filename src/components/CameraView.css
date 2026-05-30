@@ -54,6 +54,17 @@
   position: absolute;
   inset: 0;
 }
+.center-color-hint {
+  position: absolute;
+  left: 33.3333%;
+  top: 33.3333%;
+  width: 33.3333%;
+  height: 33.3333%;
+  border-radius: 8px;
+  opacity: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.38), 0 0 24px currentColor;
+  animation: center-hint-breathe 2s ease-in-out forwards;
+}
 .vline,
 .hline {
   position: absolute;
@@ -90,4 +101,20 @@
   background: var(--accent);
   box-shadow: 0 0 10px rgba(76, 154, 255, 0.7);
   transition: transform 0.12s linear;
+}
+
+@keyframes center-hint-breathe {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  25%,
+  70% {
+    opacity: 0.9;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
 }
