@@ -11,3 +11,4 @@ export {
 } from './orientation';
 export type { ValidationError, ValidationResult } from './validate';
 export { validate, describeError } from './validate';
+export { encodeFeatureCode, decodeFeatureCode } from './featureCode';

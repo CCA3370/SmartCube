@@ -46,11 +46,14 @@ button {
 
 .app-shell {
   height: 100%;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   max-width: 960px;
   margin: 0 auto;
   padding: env(safe-area-inset-top) 16px 16px;
+  overflow-x: hidden;
 }
 
 .btn {
@@ -107,6 +110,8 @@ button {
 }
 .center-col {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;

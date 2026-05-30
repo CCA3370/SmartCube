@@ -7,6 +7,7 @@ import {
   FACE_COLOR_NAME,
   buildFaceletString,
   buildCubeStateFromLabels,
+  encodeFeatureCode,
   validate,
   describeError,
   type FaceLetter,
@@ -17,6 +18,7 @@ export function ReviewScreen() {
   const { state, dispatch, solver, retrySolverInit } = useApp();
   const [busy, setBusy] = useState(false);
   const [solveError, setSolveError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const facelets = useMemo(() => {
     const haveAll = FACE_ORDER.every((f) => state.labels[f]);
@@ -31,7 +33,21 @@ export function ReviewScreen() {
   }, [state.labels]);
 
   const liveValidation = useMemo(() => (facelets ? validate(facelets) : null), [facelets]);
+  const featureCode = useMemo(
+    () => (facelets && liveValidation?.ok ? encodeFeatureCode(facelets) : null),
+    [facelets, liveValidation],
+  );
   const suspect = new Set(liveValidation?.suspectFaces ?? []);
+
+  const copyFeatureCode = async () => {
+    if (!featureCode) return;
+    try {
+      await writeClipboard(featureCode);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('failed');
+    }
+  };
 
   const handleSolve = async () => {
     if (!facelets) return;
@@ -124,6 +140,42 @@ export function ReviewScreen() {
         <p className="subtitle" style={{ color: 'var(--good)' }}>✓ Looks like a valid cube.</p>
       )}
 
+      {featureCode && (
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14 }}>
+          <div className="row spread">
+            <strong style={{ fontSize: '0.9rem' }}>Feature code</strong>
+            <button
+              className="btn btn-ghost"
+              style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+              onClick={copyFeatureCode}
+              aria-label="Copy feature code"
+            >
+              {copyStatus === 'copied' ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <code
+            style={{
+              display: 'block',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+              padding: '10px 12px',
+              wordBreak: 'break-all',
+              lineHeight: 1.5,
+              fontSize: '0.84rem',
+            }}
+          >
+            {featureCode}
+          </code>
+          {copyStatus === 'failed' && (
+            <p role="alert" style={{ margin: 0, color: 'var(--bad)', fontSize: '0.8rem' }}>
+              Copy failed.
+            </p>
+          )}
+        </div>
+      )}
+
       {busy && (
         <div>
           {!state.solverReady ? (
@@ -172,4 +224,22 @@ export function ReviewScreen() {
       </div>
     </div>
   );
+}
+
+async function writeClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!copied) throw new Error('Copy command failed');
 }
