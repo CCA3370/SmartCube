@@ -18,17 +18,19 @@ export function ScanTransitionOverlay({ finished, next, onDone }: Props) {
       clearTimeout(timer1);
       clearTimeout(timer2);
     };
-  }, [onDone]);
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="scan-transition-overlay">
       {phase === 1 ? (
-        <div className="scan-msg fade-in-out">
+        <div key="p1" className="scan-msg fade-in-out">
           <p className="scan-status">Scan Complete</p>
           <h2 className="scan-face-name">{FACE_COLOR_NAME[finished]} Face</h2>
         </div>
       ) : (
-        <div className="scan-msg fade-in-out">
+        <div key="p2" className="scan-msg fade-in-out">
           {next ? (
             <>
               <p className="scan-status">Next</p>

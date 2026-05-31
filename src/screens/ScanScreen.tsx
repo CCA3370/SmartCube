@@ -70,6 +70,8 @@ export function ScanScreen() {
     dispatch({ type: 'RESCAN_FACE', face: step.face });
   }, [dispatch, step.face]);
 
+  const clearTransition = useCallback(() => setTransition(null), []);
+
   // The cube is "located" only when found and roughly upright — a large in-plane
   // rotation would break the screen->net cell ordering, so we refuse to capture it.
   const located = detection.found && Math.abs(detection.angle) <= ANGLE_GATE;
@@ -129,7 +131,7 @@ export function ScanScreen() {
           <ScanTransitionOverlay
             finished={transition.finished}
             next={transition.next}
-            onDone={() => setTransition(null)}
+            onDone={clearTransition}
           />
         )}
       </div>
