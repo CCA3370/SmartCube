@@ -75,7 +75,6 @@ export function ScanScreen() {
   // The cube is "located" only when found and roughly upright — a large in-plane
   // rotation would break the screen->net cell ordering, so we refuse to capture it.
   const located = detection.found && Math.abs(detection.angle) <= ANGLE_GATE;
-  const tilted = detection.found && Math.abs(detection.angle) > ANGLE_GATE;
   const autoReady = readiness.ready && located && gridStable;
 
   // Re-arm on each uncaptured scan step. Captures advance immediately, so the
