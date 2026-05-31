@@ -142,18 +142,6 @@ export function ScanScreen() {
           className="row"
           style={{ gap: 6, justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}
         >
-          {!detection.found ? (
-            <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>
-              🔍 Searching for a cube face — hold one flat to the camera.
-            </p>
-          ) : tilted ? (
-            <p
-              className="subtitle"
-              style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem', color: 'var(--warn)' }}
-            >
-              ↻ Straighten the cube to capture.
-            </p>
-          ) : null}
           <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             <ReadinessIndicator readiness={readiness} />
           </div>

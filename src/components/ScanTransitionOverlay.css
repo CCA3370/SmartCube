@@ -34,7 +34,7 @@
 }
 
 .fade-in-out {
-  animation: scan-fade-in-out 2s ease-in-out forwards;
+  animation: scan-fade-in-out 1.5s ease-in-out forwards;
 }
 
 @keyframes scan-fade-in-out {

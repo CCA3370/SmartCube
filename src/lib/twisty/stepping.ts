@@ -131,12 +131,12 @@ export function makeStepper(player: TwistyPlayer, total: number): Stepper {
     emit({ atEnd: value.atEnd, index: value.atStart ? 0 : value.atEnd ? total : state.index });
   });
   listen(model.playingInfo, (value) => {
-    // If a move just finished and we are logically playing, wait 3s and trigger next.
+    // If a move just finished and we are logically playing, wait 2.5s and trigger next.
     if (!value.playing && state.playing && !state.atEnd) {
       stopLoop();
       playTimer = window.setTimeout(() => {
         if (state.playing && !state.atEnd) next();
-      }, 3000);
+      }, 2500);
     }
   });
 
