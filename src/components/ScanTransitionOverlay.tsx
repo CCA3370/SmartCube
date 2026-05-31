@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FACE_COLOR_NAME, type FaceLetter } from '../lib/cube';
 import './ScanTransitionOverlay.css';
 
