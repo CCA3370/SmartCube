@@ -1,5 +1,6 @@
 import {
   faceCells,
+  faceCellsFromGrid,
   sampleFace,
   rgb2lab,
   classifyRelativeToCenters,
@@ -42,6 +43,27 @@ export function recognizeFace(
   step: CaptureStep,
 ): { capture: FaceCapture; labels: FaceLabels } {
   const cells = faceCells(square);
+  const screenRgb = sampleFace(frame, cells);
+  const netRgb = applyRotation(screenRgb, step.rotation);
+  const capture: FaceCapture = { face: step.face, rgb: netRgb };
+
+  const labels = classifyFaceWithPalette(capture, STANDARD_PALETTE);
+  return { capture, labels };
+}
+
+/**
+ * Like `recognizeFace`, but samples 9 explicit cell centers found by the live
+ * cube-face detector (in VIDEO-pixel coords, screen row-major) instead of a fixed
+ * centered square. The result is byte-for-byte the same `FaceCapture` shape, so the
+ * de-rotation (rotation 0) and everything downstream are unchanged.
+ */
+export function recognizeFaceFromGrid(
+  frame: ImageData,
+  centers: { x: number; y: number }[],
+  cell: number,
+  step: CaptureStep,
+): { capture: FaceCapture; labels: FaceLabels } {
+  const cells = faceCellsFromGrid(centers, cell);
   const screenRgb = sampleFace(frame, cells);
   const netRgb = applyRotation(screenRgb, step.rotation);
   const capture: FaceCapture = { face: step.face, rgb: netRgb };

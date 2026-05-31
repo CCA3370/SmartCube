@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { recognizeCapturedFaces, recognizeFace } from './recognition';
+import { recognizeCapturedFaces, recognizeFace, recognizeFaceFromGrid } from './recognition';
 import { DISPLAY_COLOR } from '../lib/color';
 import type { CaptureStep, FaceCapture, FaceLetter } from '../lib/cube';
 import type { RGB, Square } from '../lib/color';
@@ -68,5 +68,38 @@ describe('recognizeFace', () => {
     expect(firstPass.F?.labels[0]).toBe('B');
     expect(secondPass.F?.labels[0]).toBe('R');
     expect(secondPass.F?.confidence?.[0]).toBe(0);
+  });
+});
+
+describe('recognizeFaceFromGrid', () => {
+  it('samples explicit detected cell centers in screen order (rotation 0 = net order)', () => {
+    const width = 120;
+    const height = 90;
+    const cell = 12;
+    const pitch = 18;
+    const ox = 30;
+    const oy = 24;
+    const data = new Uint8ClampedArray(width * height * 4);
+    const stickers: FaceLetter[] = ['U', 'R', 'F', 'D', 'F', 'L', 'B', 'U', 'D'];
+    const centers: { x: number; y: number }[] = [];
+    stickers.forEach((face, i) => {
+      const cx = ox + (i % 3) * pitch;
+      const cy = oy + Math.floor(i / 3) * pitch;
+      centers.push({ x: cx, y: cy });
+      const rgba = hexToRgba(DISPLAY_COLOR[face]);
+      for (let y = cy - cell / 2; y < cy + cell / 2; y++) {
+        for (let x = cx - cell / 2; x < cx + cell / 2; x++) {
+          data.set(rgba, ((y | 0) * width + (x | 0)) * 4);
+        }
+      }
+    });
+    const frame = { data, width, height } as ImageData;
+    const step: CaptureStep = { face: 'F', toCamera: 'F', up: 'U', rotation: 0, instruction: '' };
+
+    const { capture, labels } = recognizeFaceFromGrid(frame, centers, cell, step);
+
+    expect(labels.labels).toEqual(stickers);
+    expect(capture.rgb).toHaveLength(9);
+    expect(capture.rgb[4]).toEqual(rgb('F'));
   });
 });

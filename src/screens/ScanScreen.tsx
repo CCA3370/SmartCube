@@ -10,7 +10,9 @@ import { HoldOrientationHint } from '../components/HoldOrientationHint';
 import { CAPTURE_SEQUENCE, type FaceLetter } from '../lib/cube';
 import { DISPLAY_COLOR } from '../lib/color';
 import { centeredFaceSquare, get2d } from '../lib/util/canvas';
-import { recognizeFace } from '../app/recognition';
+import { recognizeFace, recognizeFaceFromGrid } from '../app/recognition';
+import { scalePoint } from '../lib/vision/coords';
+import { ANGLE_GATE } from '../lib/vision/detectFace';
 
 const OVERLAY_FRACTION = 0.7;
 
@@ -25,7 +27,10 @@ export function ScanScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const readiness = useFrameAnalyzer(camera.videoRef, camera.status === 'live');
+  const { readiness, detection, detectSize, gridStable } = useFrameAnalyzer(
+    camera.videoRef,
+    camera.status === 'live',
+  );
   const capturedFaces = useMemo(() => Object.keys(state.labels) as FaceLetter[], [state.labels]);
   const lastCapture = state.labels[step.face];
   const allCaptured = capturedFaces.length === CAPTURE_SEQUENCE.length;
@@ -36,21 +41,37 @@ export function ScanScreen() {
     const canvas = camera.captureFrame();
     if (!canvas) return;
     const frame = get2d(canvas).getImageData(0, 0, canvas.width, canvas.height);
-    const square = centeredFaceSquare(canvas.width, canvas.height, OVERLAY_FRACTION);
-    // recognizeFace de-rotates the sampled stickers into net order and builds the
-    // FaceCapture; the reducer re-derives all faces' labels from it.
-    const { capture } = recognizeFace(frame, square, step);
-    dispatch({ type: 'CAPTURE_FACE', face: step.face, capture });
-  }, [camera, dispatch, step]);
+    // Prefer the live-detected grid; fall back to the centered square when no face
+    // is located (manual fallback). Either path de-rotates sampled stickers into net
+    // order and builds the FaceCapture; the reducer re-derives all faces' labels.
+    if (detection.found && detectSize) {
+      const sx = canvas.width / detectSize.w;
+      const sy = canvas.height / detectSize.h;
+      const centers = detection.cells.map((c) => scalePoint(c, sx, sy));
+      const cell = detection.cell * ((sx + sy) / 2);
+      const { capture } = recognizeFaceFromGrid(frame, centers, cell, step);
+      dispatch({ type: 'CAPTURE_FACE', face: step.face, capture });
+    } else {
+      const square = centeredFaceSquare(canvas.width, canvas.height, OVERLAY_FRACTION);
+      const { capture } = recognizeFace(frame, square, step);
+      dispatch({ type: 'CAPTURE_FACE', face: step.face, capture });
+    }
+  }, [camera, dispatch, step, detection, detectSize]);
 
   const retake = useCallback(() => {
     dispatch({ type: 'RESCAN_FACE', face: step.face });
   }, [dispatch, step.face]);
 
+  // The cube is "located" only when found and roughly upright — a large in-plane
+  // rotation would break the screen->net cell ordering, so we refuse to capture it.
+  const located = detection.found && Math.abs(detection.angle) <= ANGLE_GATE;
+  const tilted = detection.found && Math.abs(detection.angle) > ANGLE_GATE;
+  const autoReady = readiness.ready && located && gridStable;
+
   // Re-arm on each uncaptured scan step. Captures advance immediately, so the
   // next render normally lands on a fresh face.
   const armed = camera.status === 'live' && !lastCapture;
-  const autoProgress = useAutoCapture(readiness, armed, doCapture, state.scanIndex);
+  const autoProgress = useAutoCapture(autoReady, armed, doCapture, state.scanIndex);
   const canCapture = camera.status === 'live';
 
   return (
@@ -90,13 +111,33 @@ export function ScanScreen() {
           centerHintColor={DISPLAY_COLOR[step.toCamera]}
           centerHintKey={state.scanIndex}
           capturedFace={undefined}
+          detection={detection}
+          detectSize={detectSize}
+          locked={autoReady}
         />
       )}
 
       <HoldOrientationHint step={step} />
       {!lastCapture ? (
-        <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <ReadinessIndicator readiness={readiness} />
+        <div
+          className="row"
+          style={{ gap: 6, justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}
+        >
+          {!detection.found ? (
+            <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>
+              🔍 Searching for a cube face — hold one flat to the camera.
+            </p>
+          ) : tilted ? (
+            <p
+              className="subtitle"
+              style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem', color: 'var(--warn)' }}
+            >
+              ↻ Straighten the cube to capture.
+            </p>
+          ) : null}
+          <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <ReadinessIndicator readiness={readiness} />
+          </div>
         </div>
       ) : (
         <p className="subtitle" style={{ margin: 0, textAlign: 'center', fontSize: '0.82rem' }}>

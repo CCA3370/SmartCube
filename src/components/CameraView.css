@@ -22,6 +22,21 @@
 .camera-video.hidden {
   opacity: 0;
 }
+/* Canvas that draws the live cube-face tracking box (quad + 3x3 grid). */
+.tracking-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* Faint dashed guide shown only while searching for a face (also the region the
+ * manual Capture button samples as a fallback). */
+.align-square.searching {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.4);
+  opacity: 0.55;
+}
 .camera-overlay {
   position: absolute;
   inset: 0;

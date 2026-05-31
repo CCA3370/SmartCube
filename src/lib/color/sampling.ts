@@ -32,6 +32,15 @@ export function faceCells(sq: Square): CellRect[] {
   return cells;
 }
 
+/**
+ * Build sticker cells from explicit centers (in the SAME screen row-major order
+ * as `faceCells`) plus a per-cell sample size. Used by the auto-detection sampler,
+ * which finds the 9 cell centers anywhere in the frame rather than on a fixed grid.
+ */
+export function faceCellsFromGrid(centers: { x: number; y: number }[], cell: number): CellRect[] {
+  return centers.map((c) => ({ cx: c.x, cy: c.y, cell }));
+}
+
 function pixelAt(data: ImageData, x: number, y: number): RGB | null {
   if (x < 0 || y < 0 || x >= data.width || y >= data.height) return null;
   const i = (y * data.width + x) * 4;

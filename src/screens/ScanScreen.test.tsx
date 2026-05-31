@@ -23,6 +23,20 @@ const mocks = vi.hoisted(() => ({
     stable: true,
     ready: true,
   } satisfies Readiness,
+  detection: {
+    found: true,
+    quad: [
+      { x: 10, y: 10 },
+      { x: 70, y: 10 },
+      { x: 70, y: 70 },
+      { x: 10, y: 70 },
+    ],
+    cells: Array.from({ length: 9 }, (_, i) => ({ x: 20 + (i % 3) * 20, y: 20 + Math.floor(i / 3) * 20 })),
+    cell: 16,
+    angle: 0,
+    confidence: 0.9,
+    synthesized: [] as number[],
+  },
   useAutoCapture: vi.fn<() => number>(),
   cameraView: vi.fn(),
 }));
@@ -54,7 +68,12 @@ vi.mock('../hooks/useCamera', () => ({
 }));
 
 vi.mock('../hooks/useFrameAnalyzer', () => ({
-  useFrameAnalyzer: () => mocks.readyFrame,
+  useFrameAnalyzer: () => ({
+    readiness: mocks.readyFrame,
+    detection: mocks.detection,
+    detectSize: { w: 320, h: 240 },
+    gridStable: true,
+  }),
 }));
 
 vi.mock('../hooks/useAutoCapture', () => ({
@@ -84,12 +103,8 @@ describe('ScanScreen', () => {
 
     expect(screen.getByRole('button', { name: /capture/i })).toBeEnabled();
     expect(screen.queryByText(/Center:/i)).not.toBeInTheDocument();
-    expect(mocks.useAutoCapture).toHaveBeenCalledWith(
-      expect.objectContaining({ ready: true }),
-      true,
-      expect.any(Function),
-      0,
-    );
+    // With a located, steady, ready face, auto-capture is armed and ready.
+    expect(mocks.useAutoCapture).toHaveBeenCalledWith(true, true, expect.any(Function), 0);
   });
 
   it('passes the target face color as a transient center overlay hint', () => {

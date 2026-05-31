@@ -40,32 +40,59 @@ export function classifyReadiness(m: FrameMetrics, t: ReadinessThresholds): Read
   return { ...m, sharp, exposed, stable, ready: sharp && exposed && stable };
 }
 
+/** A rectangular region of interest (frame px) to scope exposure/sharpness to. */
+export interface MetricsRoi {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /**
  * Compute frame metrics from RGBA pixels. `prevGray` is the previous frame's
  * grayscale buffer (or null for the first frame); returns the new gray buffer so
  * the caller can thread it to the next call.
+ *
+ * When `roi` is given, exposure + sharpness are measured only inside that region
+ * (so a sharp background can't mask a blurry cube). Stability is always whole-frame
+ * — it gates "hold still", and the cube can drift within the frame between frames.
  */
 export function computeMetrics(
   px: Uint8ClampedArray,
   w: number,
   h: number,
   prevGray: Float32Array | null,
+  roi?: MetricsRoi,
 ): { metrics: FrameMetrics; gray: Float32Array } {
   const gray = new Float32Array(w * h);
-  let lumaSum = 0;
-  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
-    const y = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-    gray[j] = y;
-    lumaSum += y;
+  for (let i = 0, j = 0; j < gray.length; i += 4, j++) {
+    gray[j] = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
   }
-  const exposure = lumaSum / (w * h);
 
-  // Variance of the Laplacian (4-neighbour kernel) over the interior.
+  const region = clampRegion(roi, w, h);
+
+  // Exposure: mean luma over the region.
+  let lumaSum = 0;
+  let lumaN = 0;
+  for (let y = region.y0; y < region.y1; y++) {
+    const row = y * w;
+    for (let x = region.x0; x < region.x1; x++) {
+      lumaSum += gray[row + x];
+      lumaN++;
+    }
+  }
+  const exposure = lumaN ? lumaSum / lumaN : 0;
+
+  // Variance of the Laplacian (4-neighbour kernel) over the region's interior.
+  const ix0 = Math.max(1, region.x0);
+  const iy0 = Math.max(1, region.y0);
+  const ix1 = Math.min(w - 1, region.x1);
+  const iy1 = Math.min(h - 1, region.y1);
   let lapSum = 0;
   let lapSq = 0;
   let n = 0;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
+  for (let y = iy0; y < iy1; y++) {
+    for (let x = ix0; x < ix1; x++) {
       const i = y * w + x;
       const lap = 4 * gray[i] - gray[i - 1] - gray[i + 1] - gray[i - w] - gray[i + w];
       lapSum += lap;
@@ -76,7 +103,7 @@ export function computeMetrics(
   const lapMean = n ? lapSum / n : 0;
   const sharpness = n ? lapSq / n - lapMean * lapMean : 0;
 
-  // Mean absolute difference vs previous frame.
+  // Mean absolute difference vs previous frame (whole frame).
   let stability: number;
   if (prevGray && prevGray.length === gray.length) {
     let diff = 0;
@@ -87,4 +114,22 @@ export function computeMetrics(
   }
 
   return { metrics: { sharpness, exposure, stability }, gray };
+}
+
+/**
+ * Clamp a ROI to a valid half-open region [x0,x1) x [y0,y1). Falls back to the
+ * full frame when no ROI is given or the clamped region is too small to measure.
+ */
+function clampRegion(
+  roi: MetricsRoi | undefined,
+  w: number,
+  h: number,
+): { x0: number; y0: number; x1: number; y1: number } {
+  if (!roi) return { x0: 0, y0: 0, x1: w, y1: h };
+  const x0 = Math.max(0, Math.min(w - 1, Math.round(roi.x)));
+  const y0 = Math.max(0, Math.min(h - 1, Math.round(roi.y)));
+  const x1 = Math.max(x0 + 1, Math.min(w, Math.round(roi.x + roi.w)));
+  const y1 = Math.max(y0 + 1, Math.min(h, Math.round(roi.y + roi.h)));
+  if (x1 - x0 < 3 || y1 - y0 < 3) return { x0: 0, y0: 0, x1: w, y1: h };
+  return { x0, y0, x1, y1 };
 }

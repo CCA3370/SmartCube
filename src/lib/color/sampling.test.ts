@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { faceCells, sampleFace, sampleSticker } from './sampling';
+import { faceCells, faceCellsFromGrid, sampleFace, sampleSticker } from './sampling';
 
 function solidImage(width: number, height: number, rgb: [number, number, number]): ImageData {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -24,6 +24,22 @@ describe('faceCells', () => {
   it('offsets the cells by the square origin', () => {
     const cells = faceCells({ x: 100, y: 40, size: 30 });
     expect(cells[0]).toMatchObject({ cx: 105, cy: 45 });
+  });
+});
+
+describe('faceCellsFromGrid', () => {
+  it('passes explicit centers + cell size straight through to CellRects', () => {
+    const cells = faceCellsFromGrid(
+      [
+        { x: 5, y: 6 },
+        { x: 7, y: 8 },
+      ],
+      10,
+    );
+    expect(cells).toEqual([
+      { cx: 5, cy: 6, cell: 10 },
+      { cx: 7, cy: 8, cell: 10 },
+    ]);
   });
 });
 
