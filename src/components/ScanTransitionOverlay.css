@@ -1,0 +1,54 @@
+.scan-transition-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  color: white;
+  text-align: center;
+  pointer-events: auto;
+  border-radius: var(--radius);
+}
+
+.scan-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scan-status {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.scan-face-name {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.fade-in-out {
+  animation: scan-fade-in-out 2s ease-in-out forwards;
+}
+
+@keyframes scan-fade-in-out {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  15%,
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}

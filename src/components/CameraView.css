@@ -9,9 +9,7 @@
   border: 1px solid var(--border);
 }
 .camera-view.reviewing {
-  background:
-    radial-gradient(circle at center, rgba(255, 176, 32, 0.12), transparent 42%),
-    #06080c;
+  background: #06080c;
 }
 .camera-video {
   width: 100%;
@@ -76,9 +74,8 @@
   width: 33.3333%;
   height: 33.3333%;
   border-radius: 8px;
-  opacity: 0;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.38), 0 0 24px currentColor;
-  animation: center-hint-breathe 2s ease-in-out forwards;
+  opacity: 0.6;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 .vline,
 .hline {
@@ -114,22 +111,5 @@
   border-radius: inherit;
   transform-origin: left;
   background: var(--accent);
-  box-shadow: 0 0 10px rgba(76, 154, 255, 0.7);
   transition: transform 0.12s linear;
-}
-
-@keyframes center-hint-breathe {
-  0% {
-    opacity: 0;
-    transform: scale(0.88);
-  }
-  25%,
-  70% {
-    opacity: 0.9;
-    transform: scale(0.96);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
 }

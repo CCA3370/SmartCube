@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { useCamera } from '../hooks/useCamera';
 import { useFrameAnalyzer } from '../hooks/useFrameAnalyzer';
 import { useAutoCapture } from '../hooks/useAutoCapture';
 import { CameraView } from '../components/CameraView';
+import { ScanTransitionOverlay } from '../components/ScanTransitionOverlay';
 import { ReadinessIndicator } from '../components/ReadinessIndicator';
 import { ProgressDots } from '../components/ProgressDots';
 import { HoldOrientationHint } from '../components/HoldOrientationHint';
@@ -20,6 +21,7 @@ export function ScanScreen() {
   const { state, dispatch } = useApp();
   const camera = useCamera();
   const step = CAPTURE_SEQUENCE[state.scanIndex];
+  const [transition, setTransition] = useState<{ finished: FaceLetter; next: FaceLetter | null } | null>(null);
 
   // Start the camera once on mount.
   useEffect(() => {
@@ -41,6 +43,7 @@ export function ScanScreen() {
     const canvas = camera.captureFrame();
     if (!canvas) return;
     const frame = get2d(canvas).getImageData(0, 0, canvas.width, canvas.height);
+
     // Prefer the live-detected grid; fall back to the centered square when no face
     // is located (manual fallback). Either path de-rotates sampled stickers into net
     // order and builds the FaceCapture; the reducer re-derives all faces' labels.
@@ -56,7 +59,12 @@ export function ScanScreen() {
       const { capture } = recognizeFace(frame, square, step);
       dispatch({ type: 'CAPTURE_FACE', face: step.face, capture });
     }
-  }, [camera, dispatch, step, detection, detectSize]);
+
+    // Trigger the feedback transition sequence (4s).
+    const nextIdx = CAPTURE_SEQUENCE.findIndex((s, i) => i > state.scanIndex && !state.labels[s.face]);
+    const nextFace = nextIdx >= 0 ? CAPTURE_SEQUENCE[nextIdx].face : null;
+    setTransition({ finished: step.face, next: nextFace });
+  }, [camera, dispatch, step, detection, detectSize, state.scanIndex, state.labels]);
 
   const retake = useCallback(() => {
     dispatch({ type: 'RESCAN_FACE', face: step.face });
@@ -95,27 +103,36 @@ export function ScanScreen() {
         </div>
       </div>
 
-      {camera.status === 'denied' || camera.status === 'error' ? (
-        <div className="card center-col" style={{ flex: 1 }}>
-          <p className="subtitle">{camera.error}</p>
-          <button className="btn btn-primary" onClick={() => camera.start()}>
-            Retry camera
-          </button>
-        </div>
-      ) : (
-        <CameraView
-          videoRef={camera.videoRef}
-          readiness={readiness}
-          autoProgress={autoProgress}
-          overlayFraction={OVERLAY_FRACTION}
-          centerHintColor={DISPLAY_COLOR[step.toCamera]}
-          centerHintKey={state.scanIndex}
-          capturedFace={undefined}
-          detection={detection}
-          detectSize={detectSize}
-          locked={autoReady}
-        />
-      )}
+      <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {camera.status === 'denied' || camera.status === 'error' ? (
+          <div className="card center-col" style={{ flex: 1 }}>
+            <p className="subtitle">{camera.error}</p>
+            <button className="btn btn-primary" onClick={() => camera.start()}>
+              Retry camera
+            </button>
+          </div>
+        ) : (
+          <CameraView
+            videoRef={camera.videoRef}
+            readiness={readiness}
+            autoProgress={autoProgress}
+            overlayFraction={OVERLAY_FRACTION}
+            centerHintColor={DISPLAY_COLOR[step.toCamera]}
+            centerHintKey={state.scanIndex}
+            capturedFace={undefined}
+            detection={detection}
+            detectSize={detectSize}
+            locked={autoReady}
+          />
+        )}
+        {transition && (
+          <ScanTransitionOverlay
+            finished={transition.finished}
+            next={transition.next}
+            onDone={() => setTransition(null)}
+          />
+        )}
+      </div>
 
       <HoldOrientationHint step={step} />
       {!lastCapture ? (

@@ -72,7 +72,7 @@ export const DEFAULT_DETECT_OPTIONS: DetectOptions = {
   stickerMaxFrac: 0.34,
   minFill: 0.5,
   minAspect: 0.5,
-  snapFrac: 0.45,
+  snapFrac: 0.3,
   minCells: 7,
   minConfidence: 0.5,
 };
@@ -114,11 +114,56 @@ export function detectFace(frame: ImageData, options?: Partial<DetectOptions>): 
   const gray = toGray(frame);
   const mag = sobelMagnitude(gray, w, h);
   const flat = flatMask(mag, w, h, opt);
+  fillHoles(flat, w, h);
   const blobs = labelComponents(flat, w, h);
   const candidates = filterBlobs(blobs, w, h, opt);
   if (candidates.length < opt.minCells) return NOT_FOUND;
 
   return fitLattice(candidates, opt) ?? NOT_FOUND;
+}
+
+/**
+ * Fill topologically internal holes (0s) in a binary mask (1s).
+ * Used to ignore logos inside stickers.
+ */
+function fillHoles(mask: Uint8Array, w: number, h: number): void {
+  const n = w * h;
+  const outside = new Uint8Array(n);
+  const stack: number[] = [];
+
+  const mark = (i: number) => {
+    if (mask[i] === 0 && outside[i] === 0) {
+      outside[i] = 1;
+      stack.push(i);
+    }
+  };
+
+  // Seed flood-fill from all 4 borders.
+  for (let x = 0; x < w; x++) {
+    mark(x);
+    mark((h - 1) * w + x);
+  }
+  for (let y = 1; y < h - 1; y++) {
+    mark(y * w);
+    mark(y * w + w - 1);
+  }
+
+  while (stack.length > 0) {
+    const i = stack.pop()!;
+    const x = i % w;
+    const y = (i / w) | 0;
+    if (x > 0) mark(i - 1);
+    if (x < w - 1) mark(i + 1);
+    if (y > 0) mark(i - w);
+    if (y < h - 1) mark(i + w);
+  }
+
+  // Anything that is still 0 and not marked outside is a hole.
+  for (let i = 0; i < n; i++) {
+    if (mask[i] === 0 && outside[i] === 0) {
+      mask[i] = 1;
+    }
+  }
 }
 
 /** Axis-aligned bounding box (DETECT space) of a found detection, for ROI metrics. */
@@ -249,34 +294,39 @@ function labelComponents(flat: Uint8Array, w: number, h: number): RawBlob[] {
     }
   }
 
-  // Accumulate stats per root label.
-  const stat = new Map<number, { area: number; sx: number; sy: number; minX: number; maxX: number; minY: number; maxY: number }>();
+  // Accumulate stats per root label using typed arrays for speed.
+  const statsArea = new Int32Array(next);
+  const statsSx = new Float32Array(next);
+  const statsSy = new Float32Array(next);
+  const statsMinX = new Int32Array(next).fill(w);
+  const statsMaxX = new Int32Array(next).fill(-1);
+  const statsMinY = new Int32Array(next).fill(h);
+  const statsMaxY = new Int32Array(next).fill(-1);
+
   for (let y = 0; y < h; y++) {
     const row = y * w;
     for (let x = 0; x < w; x++) {
-      const l = labels[row + x];
+      const i = row + x;
+      const l = labels[i];
       if (!l) continue;
       const r = find(l);
-      let s = stat.get(r);
-      if (!s) {
-        s = { area: 0, sx: 0, sy: 0, minX: x, maxX: x, minY: y, maxY: y };
-        stat.set(r, s);
-      }
-      s.area++;
-      s.sx += x;
-      s.sy += y;
-      if (x < s.minX) s.minX = x;
-      if (x > s.maxX) s.maxX = x;
-      if (y < s.minY) s.minY = y;
-      if (y > s.maxY) s.maxY = y;
+      statsArea[r]++;
+      statsSx[r] += x;
+      statsSy[r] += y;
+      if (x < statsMinX[r]) statsMinX[r] = x;
+      if (x > statsMaxX[r]) statsMaxX[r] = x;
+      if (y < statsMinY[r]) statsMinY[r] = y;
+      if (y > statsMaxY[r]) statsMaxY[r] = y;
     }
   }
 
   const blobs: RawBlob[] = [];
-  for (const s of stat.values()) {
-    const bw = s.maxX - s.minX + 1;
-    const bh = s.maxY - s.minY + 1;
-    blobs.push({ cx: s.sx / s.area, cy: s.sy / s.area, area: s.area, bw, bh });
+  for (let r = 1; r < next; r++) {
+    const area = statsArea[r];
+    if (area <= 0) continue;
+    const bw = statsMaxX[r] - statsMinX[r] + 1;
+    const bh = statsMaxY[r] - statsMinY[r] + 1;
+    blobs.push({ cx: statsSx[r] / area, cy: statsSy[r] / area, area, bw, bh });
   }
   return blobs;
 }

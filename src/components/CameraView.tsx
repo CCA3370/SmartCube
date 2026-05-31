@@ -158,10 +158,6 @@ export function CameraView({
 
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    if (locked) {
-      ctx.shadowColor = 'rgba(76,154,255,0.7)';
-      ctx.shadowBlur = 14;
-    }
     ctx.beginPath();
     ctx.moveTo(q[0].x, q[0].y);
     ctx.lineTo(q[1].x, q[1].y);
@@ -171,7 +167,6 @@ export function CameraView({
     ctx.lineWidth = locked ? 3 : 2;
     ctx.strokeStyle = strong;
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
     ctx.lineWidth = 1;
     ctx.strokeStyle = faint;
