@@ -12,8 +12,8 @@ export function ScanTransitionOverlay({ finished, next, onDone }: Props) {
   const [phase, setPhase] = useState<1 | 2>(1);
 
   useEffect(() => {
-    const timer1 = setTimeout(() => setPhase(2), 1500);
-    const timer2 = setTimeout(onDone, 3000);
+    const timer1 = setTimeout(() => setPhase(2), 1000);
+    const timer2 = setTimeout(onDone, 2000);
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);

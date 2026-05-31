@@ -21,7 +21,7 @@ export function createPlayer(): TwistyPlayer {
     hintFacelets: 'none',
     cameraLatitude: 27,
     cameraLongitude: 30,
-    tempoScale: 0.5,
+    tempoScale: 0.7,
   });
   player.style.width = '100%';
   player.style.height = '100%';
